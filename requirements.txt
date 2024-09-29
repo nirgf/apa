@@ -1,0 +1,16 @@
+numpy
+opencv-python
+matplotlib
+scipy
+pandas
+scikit-learn
+seaborn
+pygame
+torch
+torchvision
+pyproj
+utm
+folium
+tifffile
+rasterio
+toml
