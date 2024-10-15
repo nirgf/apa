@@ -1,0 +1,167 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.interpolate import splprep, splev
+from skimage.draw import line, polygon
+from shapely.geometry import LineString, Point
+from scipy.spatial.distance import cdist
+
+
+# Function to categorize a segment based on the closest point's value
+def get_category(x, y, points, PCI):
+    distances = np.sqrt((points[:, 0] - x) ** 2 + (points[:, 1] - y) ** 2)
+    # print(distances)
+    closest_index = np.argmin(distances)
+    # print(closest_index)
+    value = PCI.ravel()[closest_index]
+
+    if value < 30:
+        return "below_30"
+    elif 30 <= value <= 70:
+        return "between_30_and_70"
+    else:
+        return "above_70"
+
+
+# -------------------------------
+# Merge Close Points
+# -------------------------------
+def merge_close_points(points,PCI, threshold=0.551):
+    # np.concatenate([points,PCI.reshape(-1, 1)],axis=1)
+    points=np.c_[points,PCI]
+    merged_points = []
+    skip_indices = set()
+
+    for i in range(len(points)):
+        if i in skip_indices:
+            continue
+        close_indices = np.where(cdist([points[i, :2]], points[:, :2])[0] < threshold)[0]
+        merged_x = np.mean(points[close_indices, 0])
+        merged_y = np.mean(points[close_indices, 1])
+        merged_value = np.min(points[close_indices, 2])  # Take minimum value
+
+        merged_points.append([merged_x, merged_y, merged_value])
+        skip_indices.update(close_indices)
+
+    return np.array(merged_points)
+
+
+def fit_spline_pc(points):
+    # Fit a spline through the point cloud
+    tck, u = splprep(points.T, s=0)
+    x_new, y_new = splev(np.linspace(0, 1, 100), tck)
+    # Create a Shapely LineString from the spline points
+    line_string = LineString(np.c_[x_new, y_new])
+    return x_new,y_new,line_string
+
+
+def fill_mask_with_spline(binary_mask,xy_points,combine_mask=False):
+    x_new, y_new, line_string = fit_spline_pc(xy_points)
+    # Initialize an empty mask to track pixels touched by the spline
+    updated_mask = np.zeros_like(binary_mask)
+    # Iterate over the spline points and draw line segments
+    for i in range(len(x_new) - 1):
+        # Get the integer coordinates for the start and end of each segment
+        y0, x0 = int(round(x_new[i])), int(round(y_new[i]))
+        y1, x1 = int(round(x_new[i + 1])), int(round(y_new[i + 1]))
+
+        # Use Bresenham's line algorithm to get the pixels between the points
+        rr, cc = line(x0, y0, x1, y1)
+
+        # Set these pixels to 1 in the updated mask
+        updated_mask[rr, cc] = 1
+    if combine_mask:
+        # Combine the original binary mask with the updated mask
+        extended_mask = np.maximum(binary_mask, updated_mask)
+    else:
+        extended_mask = updated_mask
+
+    return extended_mask,line_string
+
+
+def scatter_plot_with_annotations(points, ax=None):
+    """
+    Overlay a scatter plot with annotated value dimension on the provided axis.
+
+    Parameters:
+    - points: numpy array of shape (n, 3), where columns represent (x, y, value).
+    - ax: matplotlib axis, optional. If provided, the scatter plot will be drawn on this axis.
+
+    Returns:
+    - ax: The matplotlib axis object with the scatter plot and annotations.
+    """
+    # Extract x, y, and value dimensions
+    x = points[:, 0]
+    y = points[:, 1]
+    values = points[:, 2]
+
+    # If no axis is provided, create a new figure and axis
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.grid(True)
+
+    # Scatter plot overlay
+    scatter = ax.scatter(x, y, c='red', s=50, alpha=0.7, edgecolor='black')
+
+    # Annotate each point with its rounded value
+    for i in range(len(points)):
+        ax.annotate(f'{int(round(values[i]))}',
+                    (x[i], y[i]),
+                    textcoords="offset points",  # Position text relative to point
+                    xytext=(5, 5),  # Offset the text slightly
+                    ha='center',  # Horizontal alignment
+                    fontsize=10,  # Font size for annotation
+                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='gray', facecolor='white'))
+
+    # Return the axis object with the scatter plot
+    return ax
+
+
+if __name__ == "__main__":
+    # example point cloud
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+
+    # Define custom colors
+    colors = ['#999999', '#ff0000', '#fbff00', '#32a852']
+    cmap_me = ListedColormap(colors)
+    bounds = [-0.5, 0.5, 30.5, 70.5, 100.5]
+    norm = BoundaryNorm(bounds, cmap_me.N)
+    # Example point cloud with value dimension
+    binary_mask = np.zeros((10, 10), dtype=int)
+    points_PCI = np.array([[1, 2, 20], [1.2, 2.2, 80], [2.1, 2.1, 25], [2.5, 2.5, 80], [3.5, 2.9, 50], [3.9, 2.8, 10],
+                           [5, 5, 80], [4.5, 5.5, 90], [6.7, 2.8, 90], [6.0, 2.8, 99]])  # Example points
+    points = points_PCI[:, :2]
+    PCI = points_PCI[:, 2]
+    print(len(points_PCI))
+    points_merge_PCI = merge_close_points(points, PCI, 0.8)
+    print(points_merge_PCI)
+    print(len(points_merge_PCI))
+
+    xy_points = points_PCI[:, :2]
+    xy_points_merge = points_merge_PCI[:, :2]
+
+    # Visualize the point cloud, spline, and binary mask
+    plt.plot(xy_points[:, 0], xy_points[:, 1], 'ro', label='Point Cloud')
+    x_new, y_new, _ = fit_spline_pc(xy_points)
+    plt.plot(x_new, y_new, 'b-', label='Spline Fit')
+    plt.plot(xy_points_merge[:, 0], xy_points_merge[:, 1], 'rx', label='Point Cloud new')
+
+    x_new, y_new, _ = fit_spline_pc(xy_points_merge)
+    plt.plot(x_new, y_new, 'c-', label='Spline Fit new')
+    plt.legend()
+    plt.show()
+
+    extended_mask, _ = fill_mask_with_spline(binary_mask, xy_points_merge, combine_mask=False)
+
+    # Plot the original mask, spline fit, and updated mask
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+    # Plot the original mask with the spline overlayed
+    ax.imshow(extended_mask, cmap='gray', origin='lower')
+    ax.plot(x_new, y_new, 'b-', label='Spline Fit')
+    ax = scatter_plot_with_annotations(points_merge_PCI,ax)
+    ax.set_title("Spline Fit")
+    ax.legend()
+
+    plt.show()
+
+    a = 1
