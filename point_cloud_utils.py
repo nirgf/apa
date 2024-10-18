@@ -100,7 +100,7 @@ def scatter_plot_with_annotations(points, ax=None):
         ax.grid(True)
 
     # Scatter plot overlay
-    scatter = ax.scatter(x, y, c=values, s=50, alpha=0.7, edgecolor='black')
+    scatter = ax.scatter(x, y, c=values, s=100, alpha=0.7, edgecolor='black',linewidths=1)
 
     # Annotate each point with its rounded value
     for i in range(len(points)):
@@ -208,8 +208,8 @@ if __name__ == "__main__":
 
     # Example point cloud with value dimension
     binary_mask = np.zeros((10, 10), dtype=int)
-    points_PCI = np.array([[1, 2, 20], [1.2, 2.2, 80], [2.1, 2.1, 25], [2.5, 2.5, 80], [3.5, 2.9, 50], [3.9, 2.8, 10],
-                           [5, 5, 80], [4.5, 5.5, 90], [6.7, 2.8, 90], [6.0, 2.8, 99]])  # Example points
+    points_PCI = np.array([[1, 2, 20], [1.2, 2.2, 80], [2.2, 2.2, 25], [2.5, 2.5, 80], [3.5, 2.9, 50], [3.4, 2.8, 10],
+                           [5, 5, 80], [4.9, 5.1, 90], [6.1, 2.8, 90], [6.0, 2.9, 99]])  # Example points
     points = points_PCI[:, :2]
     PCI = points_PCI[:, 2]
     print(len(points_PCI))
@@ -220,14 +220,17 @@ if __name__ == "__main__":
     xy_points = points_PCI[:, :2]
     xy_points_merge = points_merge_PCI[:, :2]
 
-    extended_mask, line_string = fill_mask_with_spline(binary_mask, xy_points_merge, combine_mask=False)
+    extended_mask, line_string = fill_mask_with_spline(binary_mask, xy_points_merge,
+                                                       combine_mask=False)  # this return mask in the pixels the spline line passes through
 
     # # Visualize the point cloud, spline, and binary mask
-    # plt.plot(xy_points[:, 0], xy_points[:, 1], 'ro', label='Point Cloud')
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+    ax.plot(xy_points[:, 0], xy_points[:, 1], 'ko',markersize=10,markeredgecolor='black',markeredgewidth=1,markerfacecolor=('blue', 0.3), label='Point Cloud with lane duplicate')
     # x_new, y_new, _ = fit_spline_pc(xy_points)
-    # plt.plot(x_new, y_new, 'b-', label='Spline Fit')
+    # ax.plot(x_new, y_new, 'b-', label='Spline Fit')
     # plt.plot(xy_points_merge[:, 0], xy_points_merge[:, 1], 'rx', label='Point Cloud new')
-    #
+
+    # Now plot with merge point
     x_new, y_new, _ = fit_spline_pc(xy_points_merge)
     # plt.plot(x_new, y_new, 'c-', label='Spline Fit new')
     # plt.legend()
@@ -247,16 +250,18 @@ if __name__ == "__main__":
     segment_mask = fill_line_with_point_values(line_string, points_merge_PCI, extended_mask.shape, radius=3.5)
 
     # Plot the original mask, spline fit, and updated mask
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+    # fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     # Plot the original mask with the spline overlayed
     cmap_me = get_lighttraffic_colormap()
-    ax.imshow(segment_mask, cmap=cmap_me, origin='lower')
+    im = ax.imshow(segment_mask, cmap=cmap_me, origin='lower')
+
     ax.plot(x_new, y_new, 'b-', label='Spline Fit')
     ax = scatter_plot_with_annotations(points_merge_PCI, ax)
     ax.set_title("Spline Fit")
     ax.legend()
-
+    cbar = fig.colorbar(im, ticks=[0, 30,70, 100], orientation='vertical')
+    cbar.ax.set_yticklabels(['severe','critical', 'moderate', 'ok'])
     plt.show()
 
     a = 1
