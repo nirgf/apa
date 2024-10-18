@@ -41,11 +41,11 @@ def convert_raster_to_geocoords(file_path):
     rows, cols = np.indices(data.shape)
     
     # Convert pixel coordinates to geospatial coordinates (easting and northing)
-    xs, ys = rasterio.transform.xy(transform, rows, cols)
+    xs, ys = rasterio.transform.xy(transform, rows.ravel(), cols.ravel())
     
     # Convert lists to numpy arrays for easier manipulation
-    xs = np.array(xs)
-    ys = np.array(ys)
+    xs = np.array(xs.reshape(rows.shape))
+    ys = np.array(ys.reshape(cols.shape))
     
     # Convert UTM coordinates to latitude and longitude
     lat_mat, lon_mat = CovertITM2LatLon.UTM2WGS(xs, ys)
