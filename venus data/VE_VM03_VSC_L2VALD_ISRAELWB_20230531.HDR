@@ -1,0 +1,544 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="DISPLAY/display.xsl"?>
+<Earth_Explorer_Header xmlns="http://eop-cfi.esa.int/CFI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schema_version="0.42" xsi:schemaLocation="http://eop-cfi.esa.int/CFI ../../Schemas/Venus/VE_VSC_PDT_L2_L2PublishedProduct.xsd" xsi:type="VSC_PDT_L2_Header_Type">
+    <Fixed_Header>
+        <File_Name>VE_VM03_VSC_L2VALD_ISRAELWB_20230531</File_Name>
+        <File_Description>L2PublishedProduct</File_Description>
+        <Notes>L2 note</Notes>
+        <Mission>VENuS</Mission>
+        <File_Class>VM03</File_Class>
+        <File_Type>VSC_L2VALD</File_Type>
+        <Validity_Period>
+            <Validity_Start>UTC=2023-05-31T08:06:51</Validity_Start>
+            <Validity_Stop>UTC=2023-05-31T08:07:00</Validity_Stop>
+        </Validity_Period>
+        <File_Version>0003</File_Version>
+        <Source>
+            <System>VIP</System>
+            <Creator>MAJA_L2_NOMINAL_CHAIN</Creator>
+            <Creator_Version>03.04</Creator_Version>
+            <Creation_Date>UTC=2023-06-01T03:30:46</Creation_Date>
+        </Source>
+    </Fixed_Header>
+    <Variable_Header>
+        <Main_Product_Header>
+            <List_of_Consumers count="0" />
+            <List_of_Extensions count="0" />
+        </Main_Product_Header>
+        <Specific_Product_Header>
+            <Instance_Id>
+                <Nick_Name>ISRAELWB</Nick_Name>
+                <Acquisition_Date>20230531</Acquisition_Date>
+            </Instance_Id>
+            <Product_Information>
+                <Product_Level>L2</Product_Level>
+                <Acquisition_Date_Time>UTC=2023-05-31T08:06:55</Acquisition_Date_Time>
+                <Acquisition_Orbit_Number unit="abs">31346</Acquisition_Orbit_Number>
+                <Processing_Information>
+                    <Date_Time>UTC=2023-06-01T03:30:46</Date_Time>
+                    <List_of_GIPP_Files count="10">
+                        <GIPP_File sn="1">
+                            <Nature>GIP_CKEXTL</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_CKEXTL_L_ALLSITES_00001_20170801_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="2">
+                            <Nature>GIP_CKQLTL</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_CKQLTL_L_ALLSITES_00002_20170801_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="3">
+                            <Nature>GIP_L2ALBD</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2ALBD_L_ALLSITES_00010_20000101_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="4">
+                            <Nature>GIP_L2COMM</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2COMM_L_ALLSITES_00001_20170801_21000101</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="5">
+                            <Nature>GIP_L2DIFT</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2DIFT_L_ALLSITES_00010_20000101_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="6">
+                            <Nature>GIP_L2DIRT</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2DIRT_L_ALLSITES_00010_20170801_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="7">
+                            <Nature>GIP_L2SITE</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2SITE_S_ALLSITES_00001_20170801_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="8">
+                            <Nature>GIP_L2SMAC</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2SMAC_L_ALLSITES_00002_20170801_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="9">
+                            <Nature>GIP_L2TOCR</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2TOCR_L_ALLSITES_00010_20000101_99991231</Logical_Name>
+                        </GIPP_File>
+                        <GIPP_File sn="10">
+                            <Nature>GIP_L2WATV</Nature>
+                            <File_Location>NIL=OTHER:EXTERNAL</File_Location>
+                            <Logical_Name>VE_OPER_GIP_L2WATV_L_ALLSITES_00005_20000101_99991231</Logical_Name>
+                        </GIPP_File>
+                    </List_of_GIPP_Files>
+                </Processing_Information>
+                <Web_Site_URL></Web_Site_URL>
+                <List_of_Quality_Indexes count="4">
+                    <Quality_Index sn="1">
+                        <Code>RAIN_DETECTED</Code>
+                        <Value>FALSE</Value>
+                    </Quality_Index>
+                    <Quality_Index sn="2">
+                        <Code>HOT_SPOT_DETECTED</Code>
+                        <Value>FALSE</Value>
+                    </Quality_Index>
+                    <Quality_Index sn="3">
+                        <Code>SUN_GLINT_DETECTED</Code>
+                        <Value>TRUE</Value>
+                    </Quality_Index>
+                    <Quality_Index sn="4">
+                        <Code>CIRRUS_DETECTED</Code>
+                        <Value>FALSE</Value>
+                    </Quality_Index>
+                </List_of_Quality_Indexes>
+                <Useful_Image_Geo_Coverage>
+                    <Reference_System>
+                        <Code>EPSG:4326</Code>
+                        <Short_Description>WGS84, World Geodetic System 1984 (2D)</Short_Description>
+                    </Reference_System>
+                    <Upper_Left_Corner>
+                        <Long unit="deg">35.1961689842</Long>
+                        <Lat unit="deg">32.9972696713</Lat>
+                        <Line>-5</Line>
+                        <Column>4548</Column>
+                    </Upper_Left_Corner>
+                    <Upper_Right_Corner>
+                        <Long unit="deg">35.4140486851</Long>
+                        <Lat unit="deg">32.9938435925</Lat>
+                        <Line>-21</Line>
+                        <Column>9640</Column>
+                    </Upper_Right_Corner>
+                    <Lower_Left_Corner>
+                        <Long unit="deg">35.0068807799</Long>
+                        <Lat unit="deg">32.6516790801</Lat>
+                        <Line>9664</Line>
+                        <Column>308</Column>
+                    </Lower_Left_Corner>
+                    <Lower_Right_Corner>
+                        <Long unit="deg">35.2623302078</Long>
+                        <Lat unit="deg">32.6473218965</Lat>
+                        <Line>9664</Line>
+                        <Column>6301</Column>
+                    </Lower_Right_Corner>
+                    <Center>
+                        <Long unit="deg">35.2196893561</Long>
+                        <Lat unit="deg">32.8226231109</Lat>
+                        <Line>4826</Line>
+                        <Column>5199</Column>
+                    </Center>
+                </Useful_Image_Geo_Coverage>
+                <List_of_Band_Central_Wavelength count="12">
+                    <Band_Central_Wavelength sk="B01" unit="nanometer">424</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B02" unit="nanometer">447</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B03" unit="nanometer">492</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B04" unit="nanometer">555</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B05" unit="nanometer">620</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B06" unit="nanometer">620</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B07" unit="nanometer">666</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B08" unit="nanometer">702</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B09" unit="nanometer">741</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B10" unit="nanometer">782</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B11" unit="nanometer">861</Band_Central_Wavelength>
+                    <Band_Central_Wavelength sk="B12" unit="nanometer">909</Band_Central_Wavelength>
+                </List_of_Band_Central_Wavelength>
+                <Solar_Angles>
+                    <Useful_Image>
+                        <Upper_Left_Corner>
+                            <Azimuth unit="deg">112.7915167158</Azimuth>
+                            <Zenith unit="deg">22.8719904632</Zenith>
+                        </Upper_Left_Corner>
+                        <Upper_Right_Corner>
+                            <Azimuth unit="deg">113.0719500559</Azimuth>
+                            <Zenith unit="deg">22.7020218619</Zenith>
+                        </Upper_Right_Corner>
+                        <Lower_Left_Corner>
+                            <Azimuth unit="deg">111.7904885391</Azimuth>
+                            <Zenith unit="deg">22.8887385882</Zenith>
+                        </Lower_Left_Corner>
+                        <Lower_Right_Corner>
+                            <Azimuth unit="deg">112.1098094851</Azimuth>
+                            <Zenith unit="deg">22.6872245366</Zenith>
+                        </Lower_Right_Corner>
+                        <Image_Center>
+                            <Azimuth unit="deg">112.4403808633</Azimuth>
+                            <Zenith unit="deg">22.7867481666</Zenith>
+                        </Image_Center>
+                    </Useful_Image>
+                    <Product>
+                        <Upper_Left_Corner>
+                            <Azimuth unit="deg">112.544239</Azimuth>
+                            <Zenith unit="deg">23.024152</Zenith>
+                        </Upper_Left_Corner>
+                        <Upper_Right_Corner>
+                            <Azimuth unit="deg">113.068436</Azimuth>
+                            <Zenith unit="deg">22.702868</Zenith>
+                        </Upper_Right_Corner>
+                        <Lower_Left_Corner>
+                            <Azimuth unit="deg">111.77401</Azimuth>
+                            <Zenith unit="deg">22.899092</Zenith>
+                        </Lower_Left_Corner>
+                        <Lower_Right_Corner>
+                            <Azimuth unit="deg">112.287321</Azimuth>
+                            <Zenith unit="deg">22.576053</Zenith>
+                        </Lower_Right_Corner>
+                    </Product>
+                </Solar_Angles>
+                <List_of_Viewing_Angles count="4">
+                    <Viewing_Angles sn="1">
+                        <Useful_Image>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">63.88104</Azimuth>
+                                <Zenith unit="deg">10.300142</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">52.992102</Azimuth>
+                                <Zenith unit="deg">9.018727</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">67.263566</Azimuth>
+                                <Zenith unit="deg">11.140586</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">55.793901</Azimuth>
+                                <Zenith unit="deg">9.495608</Zenith>
+                            </Lower_Right_Corner>
+                            <Image_Center>
+                                <Azimuth unit="deg">60.487782</Azimuth>
+                                <Zenith unit="deg">9.942616</Zenith>
+                            </Image_Center>
+                        </Useful_Image>
+                        <Product>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">71.300299</Azimuth>
+                                <Zenith unit="deg">11.687758</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">53.046425</Azimuth>
+                                <Zenith unit="deg">9.023347</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">67.767873</Azimuth>
+                                <Zenith unit="deg">11.239285</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">47.749929</Azimuth>
+                                <Zenith unit="deg">8.799325</Zenith>
+                            </Lower_Right_Corner>
+                        </Product>
+                    </Viewing_Angles>
+                    <Viewing_Angles sn="2">
+                        <Useful_Image>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">65.915935</Azimuth>
+                                <Zenith unit="deg">10.038474</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">54.964611</Azimuth>
+                                <Zenith unit="deg">8.693565</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">69.218465</Azimuth>
+                                <Zenith unit="deg">10.901753</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">57.764035</Azimuth>
+                                <Zenith unit="deg">9.186432</Zenith>
+                            </Lower_Right_Corner>
+                            <Image_Center>
+                                <Azimuth unit="deg">62.43836</Azimuth>
+                                <Zenith unit="deg">9.647087</Zenith>
+                            </Image_Center>
+                        </Useful_Image>
+                        <Product>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">73.23792</Azimuth>
+                                <Zenith unit="deg">11.475152</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">55.019884</Azimuth>
+                                <Zenith unit="deg">8.698475</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">69.666789</Azimuth>
+                                <Zenith unit="deg">10.988926</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">49.57246</Azimuth>
+                                <Zenith unit="deg">8.44793</Zenith>
+                            </Lower_Right_Corner>
+                        </Product>
+                    </Viewing_Angles>
+                    <Viewing_Angles sn="3">
+                        <Useful_Image>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">68.097957</Azimuth>
+                                <Zenith unit="deg">9.784914</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">57.132982</Azimuth>
+                                <Zenith unit="deg">8.371611</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">71.298005</Azimuth>
+                                <Zenith unit="deg">10.671504</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">59.911941</Azimuth>
+                                <Zenith unit="deg">8.882032</Zenith>
+                            </Lower_Right_Corner>
+                            <Image_Center>
+                                <Azimuth unit="deg">64.690179</Azimuth>
+                                <Zenith unit="deg">9.384993</Zenith>
+                            </Image_Center>
+                        </Useful_Image>
+                        <Product>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">75.284215</Azimuth>
+                                <Zenith unit="deg">11.271947</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">57.189058</Azimuth>
+                                <Zenith unit="deg">8.376836</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">71.785618</Azimuth>
+                                <Zenith unit="deg">10.777027</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">51.594073</Azimuth>
+                                <Zenith unit="deg">8.097287</Zenith>
+                            </Lower_Right_Corner>
+                        </Product>
+                    </Viewing_Angles>
+                    <Viewing_Angles sn="4">
+                        <Useful_Image>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">70.460969</Azimuth>
+                                <Zenith unit="deg">9.53305</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">59.53397</Azimuth>
+                                <Zenith unit="deg">8.047192</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">73.533214</Azimuth>
+                                <Zenith unit="deg">10.443647</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">62.276057</Azimuth>
+                                <Zenith unit="deg">8.575621</Zenith>
+                            </Lower_Right_Corner>
+                            <Image_Center>
+                                <Azimuth unit="deg">67.065684</Azimuth>
+                                <Zenith unit="deg">9.110278</Zenith>
+                            </Image_Center>
+                        </Useful_Image>
+                        <Product>
+                            <Upper_Left_Corner>
+                                <Azimuth unit="deg">77.463014</Azimuth>
+                                <Zenith unit="deg">11.072714</Zenith>
+                            </Upper_Left_Corner>
+                            <Upper_Right_Corner>
+                                <Azimuth unit="deg">59.590671</Azimuth>
+                                <Zenith unit="deg">8.052761</Zenith>
+                            </Upper_Right_Corner>
+                            <Lower_Left_Corner>
+                                <Azimuth unit="deg">74.008203</Azimuth>
+                                <Zenith unit="deg">10.552802</Zenith>
+                            </Lower_Left_Corner>
+                            <Lower_Right_Corner>
+                                <Azimuth unit="deg">53.8513</Azimuth>
+                                <Zenith unit="deg">7.741278</Zenith>
+                            </Lower_Right_Corner>
+                        </Product>
+                    </Viewing_Angles>
+                </List_of_Viewing_Angles>
+                <Product_Sampling>
+                    <By_Line unit="m">4</By_Line>
+                    <By_Column unit="m">4</By_Column>
+                </Product_Sampling>
+                <Viewing_Angles_In_Satellite_Frame unit="deg">
+                    <X_Direction>352.9618</X_Direction>
+                    <Y_Direction>-5.6055</Y_Direction>
+                    <XY_Direction>8.962908</XY_Direction>
+                </Viewing_Angles_In_Satellite_Frame>
+                <Reference_SiteDefinition_Id>VE_VM03_MPL_SITDEF_S_ISRAELWB</Reference_SiteDefinition_Id>
+                <Cloud_Percentage>0</Cloud_Percentage>
+                <Used_DEM>
+                    <DEM_Reference>LOCAL=VE_VM03_AUX_REFDE2_ISRAELWB_0001</DEM_Reference>
+                    <Statistics>
+                        <Min unit="m">-15</Min>
+                        <Max unit="m">1121</Max>
+                        <Average unit="m">192.2027488</Average>
+                        <Standard_Deviation unit="m">190.6891503</Standard_Deviation>
+                    </Statistics>
+                </Used_DEM>
+                <Reflectance_Quantification_Value>0.001</Reflectance_Quantification_Value>
+                <List_of_Aks count="12">
+                    <Ak sk="B01">0.155</Ak>
+                    <Ak sk="B02">0.552</Ak>
+                    <Ak sk="B03">0.782</Ak>
+                    <Ak sk="B04">0.902</Ak>
+                    <Ak sk="B05">1.158</Ak>
+                    <Ak sk="B06">1.287</Ak>
+                    <Ak sk="B07">1.228</Ak>
+                    <Ak sk="B08">1.057</Ak>
+                    <Ak sk="B09">1.704</Ak>
+                    <Ak sk="B10">1.225</Ak>
+                    <Ak sk="B11">1.539</Ak>
+                    <Ak sk="B12">1.372</Ak>
+                </List_of_Aks>
+                <Processing_Flags_And_Modes>
+                    <Processing_Mode>STANDARD_MODE</Processing_Mode>
+                    <Adjacency_Effects_And_Slope_Correction>true</Adjacency_Effects_And_Slope_Correction>
+                </Processing_Flags_And_Modes>
+                <List_of_Used_Product_Ids count="2">
+                    <Used_Product_Id sn="1">VE_VM03_VSC_L1VALD_ISRAELWB_20230531</Used_Product_Id>
+                    <Used_Product_Id sn="2">VE_VM03_VSC_L2VALD_ISRAELWB_20230519</Used_Product_Id>
+                </List_of_Used_Product_Ids>
+            </Product_Information>
+            <Image_Information>
+                <Format>GEOTIFF</Format>
+                <Binary_Encoding>LITTLE_ENDIAN</Binary_Encoding>
+                <Data_Type>SIGNED_SHORT</Data_Type>
+                <Number_of_Significant_Bits>16</Number_of_Significant_Bits>
+                <Nodata_Value>-10000</Nodata_Value>
+                <Size>
+                    <Lines>9666</Lines>
+                    <Columns>9607</Columns>
+                    <Bands>12</Bands>
+                </Size>
+                <Image_Compacting_Tool>NO</Image_Compacting_Tool>
+                <List_of_Bands count="12">
+                    <Band sn="1">B01</Band>
+                    <Band sn="2">B02</Band>
+                    <Band sn="3">B03</Band>
+                    <Band sn="4">B04</Band>
+                    <Band sn="5">B05</Band>
+                    <Band sn="6">B06</Band>
+                    <Band sn="7">B07</Band>
+                    <Band sn="8">B08</Band>
+                    <Band sn="9">B09</Band>
+                    <Band sn="10">B10</Band>
+                    <Band sn="11">B11</Band>
+                    <Band sn="12">B12</Band>
+                </List_of_Bands>
+            </Image_Information>
+            <Geo_Referencing_Information>
+                <Product_Coverage>
+                    <Cartographic>
+                        <Coordinate_Reference_System>
+                            <Code>EPSG:32636</Code>
+                            <Short_Description>PROJCS["WGS 84 / UTM zone 36N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],UNIT["metre",1,AUTHORITY["EPSG","9001"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",33],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],AUTHORITY["EPSG","32636"],AXIS["Easting",EAST],AXIS["Northing",NORTH]]</Short_Description>
+                        </Coordinate_Reference_System>
+                        <Upper_Left_Corner>
+                            <X unit="m">686990</X>
+                            <Y unit="m">3653110</Y>
+                        </Upper_Left_Corner>
+                        <Width unit="m">38429</Width>
+                        <Height unit="m">38665</Height>
+                        <Sampling_Interval>
+                            <By_Line unit="m">3.999586221</By_Line>
+                            <By_Column unit="m">3.999586221</By_Column>
+                        </Sampling_Interval>
+                    </Cartographic>
+                </Product_Coverage>
+                <Useful_Image_Coverage>
+                    <Cartographic>
+                        <Reference_System>
+                            <Code>EPSG:32636</Code>
+                            <Short_Description>PROJCS["WGS 84 / UTM zone 36N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],UNIT["metre",1,AUTHORITY["EPSG","9001"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",33],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],AUTHORITY["EPSG","32636"],AXIS["Easting",EAST],AXIS["Northing",NORTH]]</Short_Description>
+                        </Reference_System>
+                        <Upper_Left_Corner>
+                            <X unit="m">705183.8759000943</X>
+                            <Y unit="m">3653126.47179417</Y>
+                        </Upper_Left_Corner>
+                        <Upper_Right_Corner>
+                            <X unit="m">725553.3983387398</X>
+                            <Y unit="m">3653192.870963476</Y>
+                        </Upper_Right_Corner>
+                        <Lower_Left_Corner>
+                            <X unit="m">688223.8268951534</X>
+                            <Y unit="m">3614452.097618757</Y>
+                        </Lower_Left_Corner>
+                        <Lower_Right_Corner>
+                            <X unit="m">712197.4790247396</X>
+                            <Y unit="m">3614450.834674816</Y>
+                        </Lower_Right_Corner>
+                    </Cartographic>
+                </Useful_Image_Coverage>
+            </Geo_Referencing_Information>
+            <Product_Organization>
+                <Image_File>
+                    <Nature>VSC_PDTIMG</Nature>
+                    <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.HDR</File_Location>
+                    <Logical_Name>VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE</Logical_Name>
+                </Image_File>
+                <Image_File>
+                    <Nature>VSC_PDTIMG</Nature>
+                    <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_SRE.HDR</File_Location>
+                    <Logical_Name>VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_SRE</Logical_Name>
+                </Image_File>
+                <Quicklook_File>
+                    <Nature>VSC_PDTQLK</Nature>
+                    <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTQLK_L2VALD_ISRAELWB_20230531.HDR</File_Location>
+                    <Logical_Name>VE_VM03_VSC_PDTQLK_L2VALD_ISRAELWB_20230531</Logical_Name>
+                </Quicklook_File>
+                <List_of_Annex_Files count="6">
+                    <Annex_File sk="MSK">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_MSK.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_MSK</Logical_Name>
+                    </Annex_File>
+                    <Annex_File sk="QLT">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_QLT.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_QLT</Logical_Name>
+                    </Annex_File>
+                    <Annex_File sk="ATB">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_ATB.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_ATB</Logical_Name>
+                    </Annex_File>
+                    <Annex_File sk="CLD">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_CLD.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_CLD</Logical_Name>
+                    </Annex_File>
+                    <Annex_File sk="VIE">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_VIE.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_VIE</Logical_Name>
+                    </Annex_File>
+                    <Annex_File sk="SOL">
+                        <Nature>VSC_PDTANX</Nature>
+                        <File_Location>./VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL.DIR/VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_SOL.HDR</File_Location>
+                        <Logical_Name>VE_VM03_VSC_PDTANX_L2VALD_ISRAELWB_20230531_SOL</Logical_Name>
+                    </Annex_File>
+                </List_of_Annex_Files>
+                <Private_Data_File>
+                    <Nature>TEC_L2VALD</Nature>
+                    <File_Location>./PRIVATE/VE_VM03_TEC_L2VALD_ISRAELWB_20230531.EEF</File_Location>
+                    <Logical_Name>VE_VM03_TEC_L2VALD_ISRAELWB_20230531</Logical_Name>
+                </Private_Data_File>
+            </Product_Organization>
+        </Specific_Product_Header>
+    </Variable_Header>
+</Earth_Explorer_Header>
