@@ -9,7 +9,9 @@ import CovertITM2LatLon
 import pandas as pd
 import ImportVenusModule
 import matplotlib.pyplot as plt
-from point_cloud_utils import get_lighttraffic_colormap,fill_mask_with_spline,merge_close_points,scatter_plot_with_annotations,fit_spline_pc
+from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
+    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline,dilate_mask,fill_mask_with_line_point_values
+from scipy.interpolate import splprep, splev,griddata
 ## Make plots interactive
 import matplotlib
 # matplotlib.use('Qt5Agg')
@@ -34,11 +36,11 @@ lat_vec, lon_vec = CovertITM2LatLon.ITM2WGS(x_vec, y_vec)
 lat_vec = np.reshape(lat_vec, [len(lat_vec), 1])
 lon_vec = np.reshape(lon_vec, [len(lon_vec), 1])
 NA_points_ls = np.append(lat_vec, lon_vec, 1)
-# Update map file
-CovertITM2LatLon.createFoliumMap(NA_points_ls, np.mean(NA_points_ls, 0), labels=pci_vec)
-
-#%% open map in browser
-CovertITM2LatLon.showMap('points_map.html')
+# # Update map file
+# CovertITM2LatLon.createFoliumMap(NA_points_ls, np.mean(NA_points_ls, 0), labels=pci_vec)
+#
+# #%% open map in browser
+# CovertITM2LatLon.showMap('points_map.html')
 
 #%% Get venus data
 parent_path='/Users/nircko/DATA/apa'
@@ -62,48 +64,55 @@ x = getLatLon_fromTiff.convert_raster_to_geocoords(data_dirname + data_filename)
 lon_mat = x[:, :, 0]
 lat_mat = x[:, :, 1]
 
-xmin_cut = 35.06
-xmax_cut = 35.126738306451614
+# roi=((35.095,35.120),(32.802,32.818))
+# xmin_cut = 35.006
+# xmax_cut = 35.120
+# ymin_cut = 32.7440226939727
+# ymax_cut = 32.818
 
-ymin_cut = 32.7440226939727
+xmin_cut = 35.095
+xmax_cut = 35.120
+ymin_cut = 32.802
 ymax_cut = 32.818
 
+# [4999, 7080]
+#
+# [1465, 3067]
 # Get the indices corresponding to the cut boundaries
 kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut)\
                         & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
+
 #%%
 # Cut the image based on indices
-kiryatAtaImg = VenusImage[np.min(kiryatAtaIdx[:, 0]):np.max(kiryatAtaIdx[:, 0]),\
-                          np.min(kiryatAtaIdx[:, 1]):np.max(kiryatAtaIdx[:, 1]),
+# Get the indices corresponding to the cut boundaries
+#%%
+x_ind_min,x_ind_max  = np.min(kiryatAtaIdx[:,1]), np.max(kiryatAtaIdx[:,1])
+y_ind_min, y_ind_max = np.min(kiryatAtaIdx[:,0]), np.max(kiryatAtaIdx[:,0])
+# Cut the image based on indices
+kiryatAtaImg = VenusImage[y_ind_min:y_ind_max,x_ind_min:x_ind_max,
                           [6, 3, 1]].astype(float)
-kiryatAtaImg[kiryatAtaImg < 0] = 0
-norm_vec = np.max(np.max(kiryatAtaImg, 0), 0).astype(float)
+kiryatAtaImg[kiryatAtaImg <= 0] = np.nan
+norm_vec = np.nanmax(kiryatAtaImg, axis=(0,1)).astype(float)
 for normBandIdx in range(len(norm_vec)):
     kiryatAtaImg[:, :, normBandIdx] = kiryatAtaImg[:, :, normBandIdx]/norm_vec[normBandIdx]
 
-lon_mat_KiryatAta = lon_mat[np.min(kiryatAtaIdx[:, 0]):np.max(kiryatAtaIdx[:, 0]),\
-                              np.min(kiryatAtaIdx[:, 1]):np.max(kiryatAtaIdx[:, 1])]
+lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
 
-lat_mat_KiryatAta =  lat_mat[np.min(kiryatAtaIdx[:, 0]):np.max(kiryatAtaIdx[:, 0]),\
-                              np.min(kiryatAtaIdx[:, 1]):np.max(kiryatAtaIdx[:, 1])]
+lat_mat_KiryatAta =  lat_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
 
-# Loading the data back
-with open('arrays.json', 'r') as f:
-    loaded_data = json.load(f)
+# fig_roi, ax_roi = plt.subplots()
+# im_ax=ax_roi.pcolormesh(lat_mat_KiryatAta,lon_mat_KiryatAta, kiryatAtaImg)
 
-# Convert the lists back to NumPy arrays
-x_max = np.array(loaded_data['x_max'])
-x_min = np.array(loaded_data['x_min'])
-y_max = np.array(loaded_data['y_max'])
-y_min = np.array(loaded_data['y_min'])
-scatter_indices = np.array(loaded_data['scatter_indices'])
 
+# Filter the scatter points to include only those within the ROI
+scatter_indices = (lon_vec >= xmin_cut) & (lon_vec <= xmax_cut) & \
+                  (lat_vec >= ymin_cut) & (lat_vec <= ymax_cut)
 
 # Crop the X, Y, and Z arrays based on these indices
-X_cropped = lat_mat_KiryatAta[y_min:y_max+1, x_min:x_max+1]
-Y_cropped = lon_mat_KiryatAta[y_min:y_max+1, x_min:x_max+1]
+X_cropped = lat_mat_KiryatAta
+Y_cropped = lon_mat_KiryatAta
 # Apply the mask to the image
-Z_cropped = kiryatAtaImg[y_min:y_max+1, x_min:x_max+1,:]
+Z_cropped = kiryatAtaImg
 
 filtered_x = lon_vec[scatter_indices]
 filtered_y = lat_vec[scatter_indices]
@@ -112,11 +121,11 @@ filtered_PCI = filtered_PCI[scatter_indices.ravel()]
 points_PCI = np.c_[filtered_x,filtered_y,filtered_PCI]
 
 # scatter_plot_with_annotations(points_PCI,ax_roi)
-binary_mask = np.zeros_like(Z_cropped)
+binary_mask = np.zeros(Z_cropped.shape[:-1])
 points_merge_PCI = merge_close_points(points_PCI[:,:2], points_PCI[:,2], 50e-5)
 xy_points_merge = points_merge_PCI[:, :2]
 
-extended_mask, line_string = fill_mask_with_spline(binary_mask, xy_points_merge,
+extended_mask, line_string = fill_mask_with_irregular_spline(xy_points_merge,X_cropped,Y_cropped,binary_mask,
                                                    combine_mask=False)  # this return mask in the pixels the spline line passes through
 x_new, y_new, _ = fit_spline_pc(xy_points_merge)
 
@@ -127,12 +136,16 @@ scatter_plot_with_annotations(points_merge_PCI,ax_roi,markersize=200,linewidths=
 
 ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
 
+# segment_mask = fill_mask_with_line_point_values(line_string, points_merge_PCI, extended_mask.shape, radius=3.5)
 
-hys_img = VenusImage[np.min(kiryatAtaIdx[:, 0]):np.max(kiryatAtaIdx[:, 0]),\
-                          np.min(kiryatAtaIdx[:, 1]):np.max(kiryatAtaIdx[:, 1]),
-                          :].astype(float)
+grid_value= griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
+segment_mask = grid_value*dilate_mask(extended_mask,3)
+segment_mask[segment_mask<=0]=np.nan
 
-hys_img=hys_img[y_min:y_max+1, x_min:x_max+1,:]
+
+
+hys_img = VenusImage[y_ind_min:y_ind_max,x_ind_min:x_ind_max,:].astype(float)
+
 for kk in range(hys_img.shape[-1]):
     fig_roi, ax_roi = plt.subplots()
     hys_img_1chn = hys_img[:, :, kk]
