@@ -7,6 +7,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree
 from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
+from scipy.ndimage import binary_dilation,binary_erosion
 
 
 import time
@@ -163,7 +164,7 @@ def merge_close_points(points,PCI, threshold=0.551):
     return np.array(merged_points)
 
 
-def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask, radius=4.5,combine_mask=False):
+def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combine_mask=False):
     """
     Fill a mask based on a LineString and point cloud values, where points are mapped to a grid.
     Parameters:
@@ -376,7 +377,24 @@ def create_masks(segmented_image):
     return mask_below_30, mask_30_to_70, mask_above_85
 
 
+def dilate_mask(mask, dilation_pixels=3):
+    """
+    Dilate the binary mask by a specified number of pixels.
 
+    Parameters:
+    - mask: 2D binary mask to be dilated.
+    - dilation_pixels: Number of pixels to dilate the mask by.
+
+    Returns:
+    - dilated_mask: The dilated binary mask.
+    """
+    # Define the structure for dilation (square of size (2*dilation_pixels+1))
+    structure = np.ones((2 * dilation_pixels + 1, 2 * dilation_pixels + 1), dtype=np.uint8)
+
+    # Perform binary dilation on the mask
+    dilated_mask = binary_dilation(mask, structure=structure).astype(np.uint8)
+
+    return dilated_mask
 
 
 
@@ -442,3 +460,5 @@ if __name__ == "__main__":
     plt.show()
 
     a = 1
+
+
