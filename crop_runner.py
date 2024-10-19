@@ -1,6 +1,8 @@
 #%% import pandas
 import os.path
 import json
+from cProfile import label
+
 import numpy as np
 from PIL.ImageColor import colormap
 from sympy.abc import alpha
@@ -10,7 +12,7 @@ import pandas as pd
 import ImportVenusModule
 import matplotlib.pyplot as plt
 from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
-    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline,dilate_mask,fill_mask_with_line_point_values
+    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline,dilate_mask,fill_mask_with_line_point_values,create_masks,apply_masks_and_average
 from scipy.interpolate import splprep, splev,griddata
 ## Make plots interactive
 import matplotlib
@@ -75,9 +77,6 @@ xmax_cut = 35.120
 ymin_cut = 32.802
 ymax_cut = 32.818
 
-# [4999, 7080]
-#
-# [1465, 3067]
 # Get the indices corresponding to the cut boundaries
 kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut)\
                         & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
@@ -122,9 +121,13 @@ points_PCI = np.c_[filtered_x,filtered_y,filtered_PCI]
 
 # scatter_plot_with_annotations(points_PCI,ax_roi)
 binary_mask = np.zeros(Z_cropped.shape[:-1])
-points_merge_PCI = merge_close_points(points_PCI[:,:2], points_PCI[:,2], 50e-5)
+
+# this function merge different lane into one PCI (assumption, may not always be valid)
+# TODO: optimize threshold
+points_merge_PCI = merge_close_points(points_PCI[:,:2], points_PCI[:,2], 50e-5) # TODO:
 xy_points_merge = points_merge_PCI[:, :2]
 
+# create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
 extended_mask, line_string = fill_mask_with_irregular_spline(xy_points_merge,X_cropped,Y_cropped,binary_mask,
                                                    combine_mask=False)  # this return mask in the pixels the spline line passes through
 x_new, y_new, _ = fit_spline_pc(xy_points_merge)
@@ -137,14 +140,37 @@ scatter_plot_with_annotations(points_merge_PCI,ax_roi,markersize=200,linewidths=
 ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
 
 # segment_mask = fill_mask_with_line_point_values(line_string, points_merge_PCI, extended_mask.shape, radius=3.5)
-
+# create a segemented image of PCI values based on extendedn mask
 grid_value= griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
 segment_mask = grid_value*dilate_mask(extended_mask,3)
 segment_mask[segment_mask<=0]=np.nan
 
-
-
+# this part handle all bands
 hys_img = VenusImage[y_ind_min:y_ind_max,x_ind_min:x_ind_max,:].astype(float)
+hys_img_norm=np.zeros_like(hys_img)
+for kk in range(hys_img.shape[-1]):
+    hys_img_1chn = hys_img[:, :, kk]
+    hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
+    hys_img_1chn[hys_img_1chn <= 0] = np.nan
+    hys_img_norm[:,:,kk]=hys_img_1chn
+
+# Extract all the 'wavelength' values into a list
+wavelengths = [info['wavelength'] for info in bands_dict.values()]
+wavelengths_array = np.array(wavelengths)
+
+# this part create mask based on segmented PCI image
+mask_below_30, mask_30_to_70, mask_above_85 = create_masks(segment_mask)
+mask_all_channel_values_30 = apply_masks_and_average(hys_img_norm,mask_below_30)
+mask_all_channel_values_85 = apply_masks_and_average(hys_img_norm,mask_above_85)
+
+# plot spectoroms
+plt.figure(111)
+plt.plot(wavelengths_array,np.nanmean(np.asarray(mask_all_channel_values_30),axis=1),'r',label=f'below30PCI,N_AVG={np.count_nonzero(mask_all_channel_values_30)}')
+plt.plot(wavelengths_array,np.nanmean(np.asarray(mask_all_channel_values_85),axis=1),'g',label=f'above85PCI,N_AVG={np.count_nonzero(mask_all_channel_values_85)}')
+plt.title('Avg spectrogram')
+plt.xlabel('wavelength[nm]')
+plt.legend()
+
 
 for kk in range(hys_img.shape[-1]):
     fig_roi, ax_roi = plt.subplots()
