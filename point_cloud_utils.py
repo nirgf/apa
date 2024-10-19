@@ -2,9 +2,72 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import splprep, splev
 from skimage.draw import line, polygon
+from scipy.spatial import Delaunay
+from scipy.spatial.distance import pdist, squareform
+from scipy.sparse.csgraph import minimum_spanning_tree
 from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 
+import time
+import functools
+
+# ANSI escape codes for purple text with a black background
+PURPLE_ON_BLACK = "\033[45;30m"
+RESET = "\033[0m"
+
+
+def log_execution_time(func):
+    """
+    A decorator that logs the function being called and its execution time.
+    Logs are printed in purple with a black background.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+
+        # Log function name and execution time in purple on black background
+        print(f"{PURPLE_ON_BLACK}Function '{func.__name__}' was called and took {execution_time:.4f} seconds{RESET}")
+
+        return result
+
+    return wrapper
+
+
+# Example usage
+def get_lighttraffic_colormap():
+    """
+    Create a colormap that maps low values to red, mid values to yellow,
+    and high values to green, based on the 'jet' colormap.
+
+    Returns:
+    - A customized LinearSegmentedColormap object.
+    """
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from matplotlib.colors import LinearSegmentedColormap
+    # # Define custom colors
+    # colors = ['#999999', '#ff0000', '#fbff00', '#32a852']
+    # cmap_me = ListedColormap(colors)
+    # bounds = [-0.5, 0.5, 30.5, 70.5, 100.5]
+    # norm = BoundaryNorm(bounds, cmap_me.N)
+    #
+
+    # Get the 'jet' colormap
+    jet = plt.get_cmap('jet')
+
+    # Extract colors from 0.35 to 0.75 range (red to green)
+    colors = jet(np.linspace(0.5, 1, 256))
+
+    # Flip the colors to map high values to green and low to red
+    colors = colors[::-1]
+
+    # Create a new colormap from the sliced and flipped colors
+    lighttraffic = LinearSegmentedColormap.from_list('lighttraffic', colors)
+
+    return lighttraffic
 
 # Function to categorize a segment based on the closest point's value
 def get_category(x, y, points, PCI):
@@ -21,7 +84,59 @@ def get_category(x, y, points, PCI):
     else:
         return "above_70"
 
+def reorder_points_greedy(points):
+    """
+    Reorder points to form a continuous path by connecting each point to its nearest neighbor.
+    Parameters:
+    - points: numpy array of shape (n, 2), representing (x, y) coordinates.
+    Returns:
+    - ordered_points: numpy array of reordered points (x, y).
+    """
+    n_points = points.shape[0]
+    visited = np.zeros(n_points, dtype=bool)
 
+    # Start with the first point (arbitrary choice)
+    ordered_points = [points[0]]
+    visited[0] = True
+
+    for _ in range(n_points - 1):
+        last_point = ordered_points[-1]
+
+        # Calculate distances from the last point to all unvisited points
+        distances = cdist([last_point], points[~visited])[0]
+
+        # Find the index of the nearest unvisited point
+        nearest_index = np.argmin(distances)
+
+        # Get the index of the nearest unvisited point in the original array
+        true_nearest_index = np.where(~visited)[0][nearest_index]
+
+        # Add the nearest point to the ordered list and mark it as visited
+        ordered_points.append(points[true_nearest_index])
+        visited[true_nearest_index] = True
+
+    return np.array(ordered_points)
+
+@log_execution_time
+def fit_spline_pc(points):
+    """
+    Reorder the points using a greedy nearest-neighbor algorithm and fit a spline through them.
+    Parameters:
+    - points: numpy array of shape (n, 2), representing (x, y) coordinates.
+    Returns:
+    - x_new, y_new, line_string: Spline-fitted points and the corresponding LineString.
+    """
+    # Reorder points using the greedy nearest-neighbor algorithm
+    reordered_points = reorder_points_greedy(points)
+
+    # Fit a spline through the reordered points
+    tck, u = splprep(reordered_points.T, s=0)
+    x_new, y_new = splev(np.linspace(0, 1, 100), tck)
+
+    # Create a Shapely LineString from the spline points
+    line_string = LineString(np.c_[x_new, y_new])
+
+    return x_new, y_new, line_string
 # -------------------------------
 # Merge Close Points
 # -------------------------------
@@ -45,15 +160,7 @@ def merge_close_points(points,PCI, threshold=0.551):
     return np.array(merged_points)
 
 
-def fit_spline_pc(points):
-    # Fit a spline through the point cloud
-    tck, u = splprep(points.T, s=0)
-    x_new, y_new = splev(np.linspace(0, 1, 100), tck)
-    # Create a Shapely LineString from the spline points
-    line_string = LineString(np.c_[x_new, y_new])
-    return x_new,y_new,line_string
-
-
+@log_execution_time
 def fill_mask_with_spline(binary_mask,xy_points,combine_mask=False):
     x_new, y_new, line_string = fit_spline_pc(xy_points)
     # Initialize an empty mask to track pixels touched by the spline
@@ -78,7 +185,7 @@ def fill_mask_with_spline(binary_mask,xy_points,combine_mask=False):
     return extended_mask,line_string
 
 
-def scatter_plot_with_annotations(points, ax=None):
+def scatter_plot_with_annotations(points, ax=None,**kwargs):
     """
     Overlay a scatter plot with annotated value dimension on the provided axis.
 
@@ -100,7 +207,13 @@ def scatter_plot_with_annotations(points, ax=None):
         ax.grid(True)
 
     # Scatter plot overlay
-    scatter = ax.scatter(x, y, c=values, s=100, alpha=0.7, edgecolor='black',linewidths=1)
+    cmap_me = get_lighttraffic_colormap()
+    cmap_kwargs = kwargs.get('cmap', cmap_me)
+    markersize_kwargs = kwargs.get('markersize', 100)
+    markeralpha_kwargs = kwargs.get('alpha', 0.5)
+    linewidths_kwargs = kwargs.get('linewidths', 0.7)
+
+    scatter = ax.scatter(x, y, c=values, s=markersize_kwargs, alpha=markeralpha_kwargs, edgecolor='black',linewidths=linewidths_kwargs,cmap=cmap_kwargs)
 
     # Annotate each point with its rounded value
     for i in range(len(points)):
@@ -126,7 +239,7 @@ def get_segment_mask(center, radius=3.5, size=10):
     mask[dist <= radius] = 1
     return mask
 
-
+@log_execution_time
 def fill_line_with_point_values(line_string, points, mask_shape, radius=3.5):
     """
     Fill the pixels along a LineString with the value of the closest point in the point cloud,
@@ -170,36 +283,7 @@ def fill_line_with_point_values(line_string, points, mask_shape, radius=3.5):
     return segment_mask
 
 
-def get_lighttraffic_colormap():
-    """
-    Create a colormap that maps low values to red, mid values to yellow,
-    and high values to green, based on the 'jet' colormap.
 
-    Returns:
-    - A customized LinearSegmentedColormap object.
-    """
-    from matplotlib.colors import ListedColormap, BoundaryNorm
-    from matplotlib.colors import LinearSegmentedColormap
-    # # Define custom colors
-    # colors = ['#999999', '#ff0000', '#fbff00', '#32a852']
-    # cmap_me = ListedColormap(colors)
-    # bounds = [-0.5, 0.5, 30.5, 70.5, 100.5]
-    # norm = BoundaryNorm(bounds, cmap_me.N)
-    #
-
-    # Get the 'jet' colormap
-    jet = plt.get_cmap('jet')
-
-    # Extract colors from 0.35 to 0.75 range (red to green)
-    colors = jet(np.linspace(0.5, 1, 256))
-
-    # Flip the colors to map high values to green and low to red
-    colors = colors[::-1]
-
-    # Create a new colormap from the sliced and flipped colors
-    lighttraffic = LinearSegmentedColormap.from_list('lighttraffic', colors)
-
-    return lighttraffic
 
 
 
