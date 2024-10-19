@@ -180,8 +180,8 @@ def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combi
     x_new, y_new, line_string = fit_spline_pc(xy_points)
     # Initialize the mask with NaN to indicate unfilled pixels
     mask_shape=binary_mask.shape[:2]
-    # updated_mask = np.zeros_like(binary_mask)
-    updated_mask = np.full(mask_shape, np.nan, dtype=float)
+    updated_mask = np.zeros_like(binary_mask)
+    # updated_mask = np.full(mask_shape, np.nan, dtype=float)
 
     # Extract x and y coordinates from the LineString
     line_coords = np.array(line_string.coords)
@@ -357,6 +357,10 @@ def fill_mask_with_line_point_values(line_string, points_xy_values, mask_shape, 
     return segment_mask
 
 
+def fill_mask_with_line_point_values_irregular(line_string, points_xy_values, mask_shape, radius=3.5):
+    pass
+
+
 def create_masks(segmented_image):
     """
     Create masks based on the segmented image for three categories:
@@ -397,6 +401,42 @@ def dilate_mask(mask, dilation_pixels=3):
     return dilated_mask
 
 
+def apply_masks_and_average(image, mask):
+    """
+    Apply a mask to the multi-channel image and compute the average pixel values for each channel.
+
+    Parameters:
+    - image: 3D numpy array representing the image (height, width, 12).
+    - mask: 2D boolean numpy array representing the mask to be applied.
+
+    Returns:
+    - channel_values: A list containing the averaged pixel values for each channel.
+    """
+    # Apply the mask and extract the corresponding pixel values for each channel
+    channel_values = [image[:, :, channel][mask] for channel in range(image.shape[2])]
+
+    return channel_values
+
+
+def plot_normalized_histograms(channel_values, title):
+    """
+    Plot the normalized histograms for each channel.
+
+    Parameters:
+    - channel_values: A list of arrays of pixel values for the respective channels.
+    - title: Title of the plot.
+    """
+    plt.figure(figsize=(10, 8))
+
+    # Plot normalized histograms (probabilities) for each channel
+    for i, values in enumerate(channel_values):
+        plt.hist(values, bins=50, alpha=0.5, density=True, label=f'Channel {i + 1}')
+
+    plt.title(f"Normalized Histogram for {title}")
+    plt.xlabel("Pixel Intensity")
+    plt.ylabel("Probability")
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
