@@ -9,7 +9,7 @@ from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from scipy.ndimage import binary_dilation,binary_erosion
 from scipy import stats
-
+import cv2
 import time
 import functools
 
@@ -462,6 +462,24 @@ def get_stats_from_segment_spectral(segmented_pci_spectral):
     margin_of_error = t_critical * sem
 
     return (n_points,mean,std_dev,sem,margin_of_error)
+
+
+def laplacian_of_gaussian(image, sigma):
+    """Computes the Laplacian of Gaussian of an image.
+
+    Args:
+      image: The image to be processed.
+      sigma: The sigma of the Gaussian kernel.
+
+    Returns:
+      The Laplacian of Gaussian of the image.
+    """
+
+    kernel = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
+    blurred_image = cv2.GaussianBlur(image, (5, 5), sigma)
+    laplacian_image = cv2.filter2D(blurred_image, -1, kernel)
+    return laplacian_image
+
 
 if __name__ == "__main__":
 
