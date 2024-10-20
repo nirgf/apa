@@ -8,7 +8,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from scipy.ndimage import binary_dilation,binary_erosion
-
+from scipy import stats
 
 import time
 import functools
@@ -438,6 +438,30 @@ def plot_normalized_histograms(channel_values, title):
     plt.legend()
     plt.show()
 
+def get_stats_from_segment_spectral(segmented_pci_spectral):
+    # Calculate the mean and standard deviation
+    data = np.copy(segmented_pci_spectral)
+
+    # Number of data points
+    spectral_bands, n_points = data.shape
+
+    mean = np.nanmean(data,axis=1)
+    std_dev = np.nanstd(data, ddof=1,axis=1)  # Use ddof=1 for sample standard deviation
+
+
+    # Calculate the Standard Error of the Mean (SEM)
+    sem = std_dev / np.sqrt(n_points)
+
+    # Define the confidence level (e.g., 95%)
+    confidence_level = 0.95
+
+    # Calculate the t critical value (two-tailed)
+    t_critical = stats.t.ppf((1 + confidence_level) / 2, df=n_points - 1)
+
+    # Calculate the margin of error
+    margin_of_error = t_critical * sem
+
+    return (n_points,mean,std_dev,sem,margin_of_error)
 
 if __name__ == "__main__":
 
