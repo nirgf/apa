@@ -11,7 +11,7 @@ import ImportVenusModule
 import matplotlib.pyplot as plt
 from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
     scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline, dilate_mask, \
-    fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral
+    fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral,laplacian_of_gaussian
 from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
 import matplotlib
@@ -177,13 +177,17 @@ plt.legend()
 
 
 for kk in range(hys_img.shape[-1]):
-    fig_roi, ax_roi = plt.subplots()
+    # fig_roi, ax_roi = plt.subplots()
     hys_img_1chn = hys_img[:, :, kk]
     hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
     hys_img_1chn[hys_img_1chn <= 0] = np.nan
-    ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img_1chn)
-    ax_roi.set_title(f'Central Wavelength:{bands_dict[kk]['wavelength']}')
-    scatter_plot_with_annotations(points_merge_PCI, ax_roi, markersize=100, linewidths=1, alpha=0.3)
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    ax[0].pcolormesh(X_cropped, Y_cropped, hys_img_1chn,cmap='gray')
+    ax[0].set_title(f'Central Wavelength:{bands_dict[kk]['wavelength']}')
+    scatter_plot_with_annotations(points_merge_PCI, ax[0], markersize=100, linewidths=0.1, alpha=0.2)
+    ax[1].pcolormesh(X_cropped, Y_cropped, laplacian_of_gaussian(hys_img_1chn,3), cmap='gray')
+    scatter_plot_with_annotations(points_merge_PCI, ax[1], markersize=100, linewidths=0.1, alpha=0.2)
+    ax[1].set_title(f'LoG:{bands_dict[kk]['wavelength']}')
     # plt.colorbar()
     plt.show()
 
