@@ -1,8 +1,6 @@
 #%% import pandas
 import os.path
 import json
-from cProfile import label
-
 import numpy as np
 from PIL.ImageColor import colormap
 from sympy.abc import alpha
@@ -12,8 +10,9 @@ import pandas as pd
 import ImportVenusModule
 import matplotlib.pyplot as plt
 from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
-    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline,dilate_mask,fill_mask_with_line_point_values,create_masks,apply_masks_and_average
-from scipy.interpolate import splprep, splev,griddata
+    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline, dilate_mask, \
+    fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral
+from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
 import matplotlib
 # matplotlib.use('Qt5Agg')
@@ -157,16 +156,21 @@ for kk in range(hys_img.shape[-1]):
 # Extract all the 'wavelength' values into a list
 wavelengths = [info['wavelength'] for info in bands_dict.values()]
 wavelengths_array = np.array(wavelengths)
+wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.values()])
 
 # this part create mask based on segmented PCI image
 mask_below_30, mask_30_to_70, mask_above_85 = create_masks(segment_mask)
-mask_all_channel_values_30 = apply_masks_and_average(hys_img_norm,mask_below_30)
-mask_all_channel_values_85 = apply_masks_and_average(hys_img_norm,mask_above_85)
+mask_all_channel_values_30 = np.asarray(apply_masks_and_average(hys_img_norm,mask_below_30))
+mask_all_channel_values_85 = np.asarray(apply_masks_and_average(hys_img_norm,mask_above_85))
 
+stats_30PCI = get_stats_from_segment_spectral(mask_all_channel_values_30)
+stats_85PCI = get_stats_from_segment_spectral(mask_all_channel_values_85)
 # plot spectoroms
 plt.figure(111)
-plt.plot(wavelengths_array,np.nanmean(np.asarray(mask_all_channel_values_30),axis=1),'r',label=f'below30PCI,N_AVG={np.count_nonzero(mask_all_channel_values_30)}')
-plt.plot(wavelengths_array,np.nanmean(np.asarray(mask_all_channel_values_85),axis=1),'g',label=f'above85PCI,N_AVG={np.count_nonzero(mask_all_channel_values_85)}')
+plt.plot(wavelengths_array,stats_30PCI[1],'r',label=f'below30PCI,N_AVG={stats_30PCI[0]}')
+plt.errorbar(wavelengths_array,stats_30PCI[1], yerr=stats_30PCI[2], fmt='o',color='r',alpha=0.5)
+plt.plot(wavelengths_array,stats_85PCI[1],'g',label=f'above85PCI,N_AVG={stats_85PCI[0]}')
+plt.errorbar(wavelengths_array,stats_85PCI[1], yerr=stats_85PCI[2], fmt='o',color='g',alpha=0.5)
 plt.title('Avg spectrogram')
 plt.xlabel('wavelength[nm]')
 plt.legend()
