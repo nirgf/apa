@@ -43,6 +43,10 @@ def createFoliumMap(points, map_center, labels, zoom_start=10, marker_radius = 0
 
 #%% Show the map
 import webbrowser
+import os
 def showMap(map_filename = "points_map.html"):
-    webbrowser.open_new("points_map.html")
+    # Use the absolute path to the HTML file
+    file_path = os.path.abspath(map_filename)
+    # Opens the default browser
+    webbrowser.get().open_new(f"file://{file_path}")
     
