@@ -52,18 +52,6 @@ def plot_road_mask(roads_gdf):
     plt.title("Road Mask")
     plt.show()
 
-# Example usage
-if __name__ == "__main__":
-    # Define lat/lon range (example)
-    lat_range = (32.804, 32.817)
-    lon_range = (35.108, 35.127)
-
-    # Get road data in the lat/lon area
-    roads_gdf = get_road_mask(lat_range, lon_range)
-
-    # Plot the road mask
-    plot_road_mask(roads_gdf)
-
 
 def get_coinciding_mask(roads_gdf, lat_matrix, lon_matrix):
     """
@@ -101,24 +89,14 @@ def get_coinciding_mask(roads_gdf, lat_matrix, lon_matrix):
 
     # Check intersections for each pixel using the spatial index
     for i, j, pixel_polygon in tqdm(pixel_polygons, desc='Checking Intersections (Step 2 of 2)'):
-        # Query the tree to find possible intersecting roads
-        possible_roads = road_tree.query(pixel_polygon)  # Returns the actual geometries directly
+        # Query the tree to find possible intersecting road indices
+        possible_indices = road_tree.query(pixel_polygon)
+
+        # Fetch the actual geometries using the indices
+        possible_roads = roads_gdf.geometry.iloc[list(possible_indices)]
 
         # Check if any of the queried roads actually intersect the pixel
         if any(road.intersects(pixel_polygon) for road in possible_roads):
             boolean_mask[i, j] = True
 
     return boolean_mask
-
-if __name__ == "__main__":
-    # Define lat/lon range (example)
-    lat_range = (32.804, 32.817)
-    lon_range = (35.108, 35.127)
-
-    # Get road data in the lat/lon area
-    roads_gdf = get_road_mask(lat_range, lon_range)
-    
-    # bool_mask = get_coinciding_mask(roads_gdf, lat_range, lon_range)
-
-    # Plot the road mask
-    plot_road_mask(roads_gdf)
