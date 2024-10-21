@@ -157,18 +157,17 @@ roads_gdf = GetRoadsCoordinates.get_road_mask(lat_range, lon_range)
 # plt.pcolormesh(lat_mat_KiryatAta, lon_mat_KiryatAta,  kiryatAtaImg)
 
 # # boolean mask for VENUS Data
-# coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat_KiryatAta, lat_mat_KiryatAta)
-# expanded_mask = np.repeat(coinciding_mask[:, :, np.newaxis], 3, axis=2)  # Shape becomes (2081, 1602, 3)
-# plt.figure()
-# plt.imshow(coinciding_mask)
-#
-#
-# rowAndColIdx = np.argwhere(coinciding_mask)
-# filteredKiryaAtaImg = np.zeros(np.shape(kiryatAtaImg))
-# filteredKiryaAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :] \
-#     = (kiryatAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :])
-#
-# plt.pcolormesh(lat_mat_KiryatAta, \
-#                lon_mat_KiryatAta,  \
-#                    filteredKiryaAtaImg[:, :, 0])
-#
+coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat_KiryatAta, lat_mat_KiryatAta)
+expanded_mask = np.repeat(coinciding_mask[:, :, np.newaxis], 3, axis=2)  # Shape becomes (2081, 1602, 3)
+
+# Filter The Venus Data to include the results data
+rowAndColIdx = np.argwhere(coinciding_mask)
+filteredKiryaAtaImg = np.zeros(np.shape(kiryatAtaImg))
+filteredKiryaAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :] \
+    = (kiryatAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :])
+
+plt.figure()
+plt.pcolormesh(lat_mat_KiryatAta, \
+               lon_mat_KiryatAta,  \
+                   filteredKiryaAtaImg[:, :, 0])
+
