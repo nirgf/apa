@@ -86,7 +86,7 @@ def get_category(x, y, points, PCI):
     else:
         return "above_70"
 
-def reorder_points_greedy(points):
+def reorder_points_greedy(points,**kwargs):
     """
     Reorder points to form a continuous path by connecting each point to its nearest neighbor.
     Parameters:
@@ -97,8 +97,21 @@ def reorder_points_greedy(points):
     n_points = points.shape[0]
     visited = np.zeros(n_points, dtype=bool)
 
-    # Start with the first point (arbitrary choice)
-    ordered_points = [points[0]]
+    start_point = kwargs.get('start_point', None)
+    print(f'start_point greedy merege:{start_point}')
+
+    #TODO: support first point robustness as it's affect the trajectory
+
+    #Assume min is eastmost_x,nortmost_y for ISR
+
+    westmost_x,southmost_y = np.argmin(points, axis=0)
+    points[np.argmin(points, axis=0)[1]]
+    if start_point=='westmost':
+        ordered_points = [points[westmost_x]]
+    elif start_point=='northmost':
+        ordered_points = [points[southmost_y]]
+    else:
+        ordered_points = [points[0]]
     visited[0] = True
 
     for _ in range(n_points - 1):
@@ -128,12 +141,14 @@ def fit_spline_pc(points,**kwargs):
     Returns:
     - x_new, y_new, line_string: Spline-fitted points and the corresponding LineString.
     """
+    spline_res = kwargs.get('spline_res', 100)
+    start_point_indx = kwargs.get('start_point_indx', None)
     # Reorder points using the greedy nearest-neighbor algorithm
-    reordered_points = reorder_points_greedy(points)
+    reordered_points = reorder_points_greedy(points,start_point=start_point_indx)
 
     # Fit a spline through the reordered points
-    tck, u = splprep(reordered_points.T, s=0)
-    spline_res = kwargs.get('spline_res', 100)
+    tck, uk = splprep(reordered_points.T, s=0,per=0)
+
 
     x_new, y_new = splev(np.linspace(0, 1, spline_res), tck)
 
@@ -144,20 +159,33 @@ def fit_spline_pc(points,**kwargs):
 # -------------------------------
 # Merge Close Points
 # -------------------------------
-def merge_close_points(points,PCI, threshold=0.551):
+def merge_close_points(points,PCI, threshold=0.551,**kwargs):
     # np.concatenate([points,PCI.reshape(-1, 1)],axis=1)
     points=np.c_[points,PCI]
     merged_points = []
     skip_indices = set()
-
+    merge_method = kwargs.get('merge_method', 'mean_min')
+    print(f'merge_method:__{merge_method}__\n\n')
     for i in range(len(points)):
         if i in skip_indices:
             continue
         close_indices = np.where(cdist([points[i, :2]], points[:, :2])[0] < threshold)[0]
-        merged_x = np.mean(points[close_indices, 0])
-        merged_y = np.mean(points[close_indices, 1])
-        merged_value = np.min(points[close_indices, 2])  # Take minimum value
-
+        if merge_method == 'first_location':
+            merged_x = points[close_indices[0], 0]
+            merged_y = points[close_indices[0], 1]
+            merged_value = points[close_indices[0], 2]  # Get  value
+        elif merge_method == 'middle_location':
+            merged_x = points[close_indices[(len(close_indices)-1)//2], 0]
+            merged_y = points[close_indices[(len(close_indices)-1)//2], 1]
+            merged_value = points[close_indices[(len(close_indices)-1)//2], 2]  # Get  value
+        elif merge_method == 'min_min':
+            merged_x = np.min(points[close_indices, 0])
+            merged_y = np.min(points[close_indices, 1])
+            merged_value = np.min(points[close_indices, 2])  # Take minimum value
+        else:
+            merged_x = np.mean(points[close_indices, 0])
+            merged_y = np.mean(points[close_indices, 1])
+            merged_value = np.min(points[close_indices, 2])  # Take minimum value
         merged_points.append([merged_x, merged_y, merged_value])
         skip_indices.update(close_indices)
 
@@ -177,7 +205,7 @@ def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combi
     Returns:
     - mask_grid: A 2D numpy array of the same shape as X_grid and Y_grid filled with the nearest point values.
     """
-    x_new, y_new, line_string = fit_spline_pc(xy_points)
+    x_new, y_new, line_string = fit_spline_pc(xy_points,start_point_indx='westmost')
     # Initialize the mask with NaN to indicate unfilled pixels
     mask_shape=binary_mask.shape[:2]
     updated_mask = np.zeros_like(binary_mask)
@@ -213,7 +241,7 @@ def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combi
     else:
         extended_mask = updated_mask
 
-    return extended_mask,line_string
+    return extended_mask,line_string, (x_new, y_new)
 
 
 
