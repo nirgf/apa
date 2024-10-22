@@ -12,6 +12,7 @@ from scipy import stats
 import cv2
 import time
 import functools
+from GetRoadsModule import GetRoadsCoordinates
 
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -507,6 +508,13 @@ def laplacian_of_gaussian(image, sigma):
     blurred_image = cv2.GaussianBlur(image, (5, 5), sigma)
     laplacian_image = cv2.filter2D(blurred_image, -1, kernel)
     return laplacian_image
+
+#%% Get only pixels that intersect with roads
+def get_pixels_intersect_with_roads(lon_mat,lat_mat,lon_range,lat_range):
+    roads_gdf = GetRoadsCoordinates.get_road_mask(lat_range, lon_range)
+    # boolean mask for VENUS Data
+    coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat, lat_mat)
+    return coinciding_mask
 
 
 if __name__ == "__main__":
