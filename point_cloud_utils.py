@@ -206,7 +206,7 @@ def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combi
     Returns:
     - mask_grid: A 2D numpy array of the same shape as X_grid and Y_grid filled with the nearest point values.
     """
-    x_new, y_new, line_string = fit_spline_pc(xy_points,start_point_indx='westmost')
+    x_new, y_new, line_string = fit_spline_pc(xy_points,start_point_indx=None)
     # Initialize the mask with NaN to indicate unfilled pixels
     mask_shape=binary_mask.shape[:2]
     updated_mask = np.zeros_like(binary_mask)
@@ -515,6 +515,17 @@ def get_pixels_intersect_with_roads(lon_mat,lat_mat,lon_range,lat_range):
     # boolean mask for VENUS Data
     coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat, lat_mat)
     return coinciding_mask
+
+def normalize_hypersepctral_bands(hys_img):
+    # this part handle all bands
+    hys_img_norm = np.zeros_like(hys_img)
+    for kk in range(hys_img.shape[-1]):
+        hys_img_1chn = hys_img[:, :, kk]
+        hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
+        hys_img_1chn[hys_img_1chn <= 0] = np.nan
+        hys_img_norm[:, :, kk] = hys_img_1chn
+
+    return hys_img_norm
 
 
 if __name__ == "__main__":
