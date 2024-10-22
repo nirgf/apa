@@ -153,3 +153,4 @@ wheels/
 # venv
 venv*/*
 
+*.html
