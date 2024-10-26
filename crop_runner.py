@@ -3,6 +3,7 @@ import os.path
 import json
 import numpy as np
 from PIL.ImageColor import colormap
+from scipy.special import result
 from sympy.abc import alpha
 from CONST import bands_dict
 import CovertITM2LatLon
@@ -11,7 +12,7 @@ import ImportVenusModule
 import matplotlib.pyplot as plt
 from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
     scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline, dilate_mask, \
-    fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral,laplacian_of_gaussian
+    fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral,laplacian_of_gaussian,get_pixels_intersect_with_roads,normalize_hypersepctral_bands
 from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
 import matplotlib
@@ -98,9 +99,9 @@ lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
 
 lat_mat_KiryatAta =  lat_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
 
-# fig_roi, ax_roi = plt.subplots()
-# im_ax=ax_roi.pcolormesh(lat_mat_KiryatAta,lon_mat_KiryatAta, kiryatAtaImg)
-
+# normalize spectral image for all bands
+hys_img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
+hys_img=normalize_hypersepctral_bands(hys_img)
 
 # Filter the scatter points to include only those within the ROI
 scatter_indices = (lon_vec >= xmin_cut) & (lon_vec <= xmax_cut) & \
@@ -118,6 +119,16 @@ filtered_PCI = pci_vec.values
 filtered_PCI = filtered_PCI[scatter_indices.ravel()]
 points_PCI = np.c_[filtered_x,filtered_y,filtered_PCI]
 
+#%% Get only pixels that intersect with roads
+lat_range = (ymin_cut, ymax_cut)
+lon_range = (xmin_cut, xmax_cut)
+coinciding_mask=get_pixels_intersect_with_roads(lon_mat_KiryatAta,lat_mat_KiryatAta,lon_range,lat_range) # assume prefect fit and registration is not needed
+rowAndColIdx = np.argwhere(coinciding_mask)
+filteredKiryaAtaImg = np.zeros(np.shape(kiryatAtaImg))
+filteredKiryaAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :] \
+    = (kiryatAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :])
+
+
 # scatter_plot_with_annotations(points_PCI,ax_roi)
 binary_mask = np.zeros(Z_cropped.shape[:-1])
 
@@ -126,32 +137,34 @@ binary_mask = np.zeros(Z_cropped.shape[:-1])
 points_merge_PCI = merge_close_points(points_PCI[:,:2], points_PCI[:,2], 50e-5) # TODO:
 xy_points_merge = points_merge_PCI[:, :2]
 
-# create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
-extended_mask, line_string = fill_mask_with_irregular_spline(xy_points_merge,X_cropped,Y_cropped,binary_mask,
+# # create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
+extended_mask, line_string, xy_spline = fill_mask_with_irregular_spline(xy_points_merge,X_cropped,Y_cropped,binary_mask,
                                                    combine_mask=False)  # this return mask in the pixels the spline line passes through
-x_new, y_new, _ = fit_spline_pc(xy_points_merge)
+
+# to mask out coninciding mask only where there it a PCI data
+extended_mask = dilate_mask(extended_mask,5)*coinciding_mask
+
+# create a segemented image of PCI values based on extendedn mask
+grid_value= griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
+segment_mask = grid_value*extended_mask
+segment_mask[segment_mask<=0]=np.nan
+
+x_new, y_new = xy_spline
 
 # Plot the masked data using pcolormesh
 fig_roi, ax_roi = plt.subplots()
-im_ax=ax_roi.pcolormesh(X_cropped, Y_cropped, Z_cropped)
+im_ax=ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img[:,:,-1],cmap='gray')
 scatter_plot_with_annotations(points_merge_PCI,ax_roi,markersize=200,linewidths=2,alpha=1)
-
 ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
+ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask,alpha=0.2)
 
-# segment_mask = fill_mask_with_line_point_values(line_string, points_merge_PCI, extended_mask.shape, radius=3.5)
-# create a segemented image of PCI values based on extendedn mask
-grid_value= griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-segment_mask = grid_value*dilate_mask(extended_mask,3)
-segment_mask[segment_mask<=0]=np.nan
 
-# this part handle all bands
-hys_img = VenusImage[y_ind_min:y_ind_max,x_ind_min:x_ind_max,:].astype(float)
-hys_img_norm=np.zeros_like(hys_img)
-for kk in range(hys_img.shape[-1]):
-    hys_img_1chn = hys_img[:, :, kk]
-    hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
-    hys_img_1chn[hys_img_1chn <= 0] = np.nan
-    hys_img_norm[:,:,kk]=hys_img_1chn
+fig_roi, ax_roi = plt.subplots()
+im_ax=ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img[:,:,-1],cmap='gray')
+# scatter_plot_with_annotations(points_merge_PCI,ax_roi,markersize=200,linewidths=2,alpha=1)
+# ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
+ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask,alpha=0.2)
+
 
 # Extract all the 'wavelength' values into a list
 wavelengths = [info['wavelength'] for info in bands_dict.values()]
@@ -160,8 +173,8 @@ wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.value
 
 # this part create mask based on segmented PCI image
 mask_below_30, mask_30_to_70, mask_above_85 = create_masks(segment_mask)
-mask_all_channel_values_30 = np.asarray(apply_masks_and_average(hys_img_norm,mask_below_30))
-mask_all_channel_values_85 = np.asarray(apply_masks_and_average(hys_img_norm,mask_above_85))
+mask_all_channel_values_30 = np.asarray(apply_masks_and_average(hys_img,mask_below_30))
+mask_all_channel_values_85 = np.asarray(apply_masks_and_average(hys_img,mask_above_85))
 
 stats_30PCI = get_stats_from_segment_spectral(mask_all_channel_values_30)
 stats_85PCI = get_stats_from_segment_spectral(mask_all_channel_values_85)
@@ -176,49 +189,63 @@ plt.xlabel('wavelength[nm]')
 plt.legend()
 
 
-for kk in range(hys_img.shape[-1]):
-    # fig_roi, ax_roi = plt.subplots()
-    hys_img_1chn = hys_img[:, :, kk]
-    hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
-    hys_img_1chn[hys_img_1chn <= 0] = np.nan
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-    ax[0].pcolormesh(X_cropped, Y_cropped, hys_img_1chn,cmap='gray')
-    ax[0].set_title(f'Central Wavelength:{bands_dict[kk]['wavelength']}')
-    scatter_plot_with_annotations(points_merge_PCI, ax[0], markersize=100, linewidths=0.1, alpha=0.2)
-    ax[1].pcolormesh(X_cropped, Y_cropped, laplacian_of_gaussian(hys_img_1chn,3), cmap='gray')
-    scatter_plot_with_annotations(points_merge_PCI, ax[1], markersize=100, linewidths=0.1, alpha=0.2)
-    ax[1].set_title(f'LoG:{bands_dict[kk]['wavelength']}')
-    # plt.colorbar()
-    plt.show()
-
 plt.show()
 
-
-
-#%% Get only pixels that intersect with roads
-from GetRoadsModule import GetRoadsCoordinates
-lat_range = (ymin_cut, ymax_cut)
-lon_range = (xmin_cut, xmax_cut)
-
-roads_gdf = GetRoadsCoordinates.get_road_mask(lat_range, lon_range)
-
-## Plot the road maks and VENUS data on the same fig
-# GetRoadsCoordinates.plot_road_mask(roads_gdf)
-# plt.pcolormesh(lat_mat_KiryatAta, lon_mat_KiryatAta,  kiryatAtaImg)
-
-# # boolean mask for VENUS Data
-# coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat_KiryatAta, lat_mat_KiryatAta)
-# expanded_mask = np.repeat(coinciding_mask[:, :, np.newaxis], 3, axis=2)  # Shape becomes (2081, 1602, 3)
-# plt.figure()
-# plt.imshow(coinciding_mask)
-#
-#
-# rowAndColIdx = np.argwhere(coinciding_mask)
-# filteredKiryaAtaImg = np.zeros(np.shape(kiryatAtaImg))
-# filteredKiryaAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :] \
-#     = (kiryatAtaImg[rowAndColIdx[:, 0], rowAndColIdx[:, 1], :])
+a=1
 #
 # plt.pcolormesh(lat_mat_KiryatAta, \
 #                lon_mat_KiryatAta,  \
 #                    filteredKiryaAtaImg[:, :, 0])
 #
+
+plot_animation=True
+if plot_animation:
+    from matplotlib.animation import FuncAnimation
+
+    def nan_arr(arr):
+        arr[arr <= 0] = np.nan
+        return arr
+
+    def or_nan(x1,x2):
+        # Apply "or" operation between the arrays
+        result = np.where(np.isnan(x1) & np.isnan(x2), np.nan,  # If both are NaN, keep NaN
+                          np.where(np.isnan(x1), x2,  # If only x1 is NaN, use x2
+                                   np.where(np.isnan(x2), x1,  # If only x2 is NaN, use x1
+                                            x1)))  # If neither is NaN, use x1
+        return result
+
+    # Initialize the plot
+    fig_ani, ax_ani = plt.subplots()
+    ax_ani.set_xticks([])  # Remove x ticks
+    ax_ani.set_yticks([])  # Remove y ticks
+    ax_ani.set_title('Gradually Appearing Segments')
+
+    # Adjust the axis to fill the figure
+    ax_ani.set_position([0, 0, 1, 1])  # Fill entire figure with the axis
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # No margins around the plot
+    demo_mask=nan_arr(coinciding_mask*grid_value)
+    # Use pcolormesh to create the initial empty grid (binary mask)
+    im_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
+    c_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, segment_mask,cmap=cmap_me,vmin=10,vmax=100)
+    ax_ani.set_xlim(35.10, np.max(X_cropped))
+    ax_ani.set_ylim(np.min(Y_cropped), np.max(Y_cropped))
+
+    # Function to update the mask in each frame
+    def update(frame):
+        # Create a mask that gradually reveals more segments
+        reveal_mask = np.full(demo_mask.shape, np.nan, dtype=float)
+        reveal_mask[:10*frame, :] = demo_mask[:10*frame, :]
+        reveal_mask=or_nan(reveal_mask,segment_mask) # add existing PCI
+        c_ax.set_array(reveal_mask.ravel())
+        return c_ax,
+
+    # Create the animation
+    ani = FuncAnimation(fig_ani, update, frames=range(1, demo_mask.shape[0]//10+1), blit=True, interval=500)
+
+    # Turn off the grid lines and ticks
+    plt.axis('off')
+    # Save as AVI
+    ani.save('animation.avi', writer='ffmpeg', fps=10)
+
+    # Save as GIF
+    ani.save('animation.gif', writer='imagemagick', fps=100)
