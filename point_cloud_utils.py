@@ -12,6 +12,7 @@ from scipy import stats
 import cv2
 import time
 import functools
+from GetRoadsModule import GetRoadsCoordinates
 
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -205,7 +206,7 @@ def fill_mask_with_irregular_spline(xy_points, X_grid, Y_grid, binary_mask,combi
     Returns:
     - mask_grid: A 2D numpy array of the same shape as X_grid and Y_grid filled with the nearest point values.
     """
-    x_new, y_new, line_string = fit_spline_pc(xy_points,start_point_indx='westmost')
+    x_new, y_new, line_string = fit_spline_pc(xy_points,start_point_indx=None)
     # Initialize the mask with NaN to indicate unfilled pixels
     mask_shape=binary_mask.shape[:2]
     updated_mask = np.zeros_like(binary_mask)
@@ -507,6 +508,24 @@ def laplacian_of_gaussian(image, sigma):
     blurred_image = cv2.GaussianBlur(image, (5, 5), sigma)
     laplacian_image = cv2.filter2D(blurred_image, -1, kernel)
     return laplacian_image
+
+#%% Get only pixels that intersect with roads
+def get_pixels_intersect_with_roads(lon_mat,lat_mat,lon_range,lat_range):
+    roads_gdf = GetRoadsCoordinates.get_road_mask(lat_range, lon_range)
+    # boolean mask for VENUS Data
+    coinciding_mask = GetRoadsCoordinates.get_coinciding_mask(roads_gdf, lon_mat, lat_mat)
+    return coinciding_mask
+
+def normalize_hypersepctral_bands(hys_img):
+    # this part handle all bands
+    hys_img_norm = np.zeros_like(hys_img)
+    for kk in range(hys_img.shape[-1]):
+        hys_img_1chn = hys_img[:, :, kk]
+        hys_img_1chn = hys_img_1chn / np.nanmax(hys_img_1chn)
+        hys_img_1chn[hys_img_1chn <= 0] = np.nan
+        hys_img_norm[:, :, kk] = hys_img_1chn
+
+    return hys_img_norm
 
 
 if __name__ == "__main__":
