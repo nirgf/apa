@@ -13,6 +13,7 @@ import cv2
 import time
 import functools
 from GetRoadsModule import GetRoadsCoordinates
+from sklearn.decomposition import PCA
 
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -527,6 +528,32 @@ def normalize_hypersepctral_bands(hys_img):
 
     return hys_img_norm
 
+
+
+def normalize_img(img):
+    # Normalize each channel to [0, 1] for display
+    return (img - np.min(img)) / (np.max(img) - np.min(img))
+
+
+def false_color_hyperspectral_image(hys_img):
+    # Reshape hyperspectral data for PCA (flatten spatial dimensions)
+    pixels = hys_img.reshape(-1, hys_img.shape[2])  # Shape: (npixels, nbands)
+    pixels[np.isnan(pixels)] = 0
+    # Apply PCA to reduce to 3 components
+    pca = PCA(n_components=3)
+    pca_result = pca.fit_transform(pixels)  # Shape: (npixels, 3)
+    # Reshape the result back to 2D image with 3 channels
+    pca_image = pca_result.reshape(hys_img.shape[0], hys_img.shape[1], 3)
+
+
+    # Normalize each PCA component for display
+    red = normalize_img(pca_image[:, :, 0])
+    green = normalize_img(pca_image[:, :, 1])
+    blue = normalize_img(pca_image[:, :, 2])
+
+    # Stack the normalized components to create an RGB image
+    false_color_image = np.stack((red, green, blue), axis=-1)
+    return false_color_image
 
 if __name__ == "__main__":
 
