@@ -131,7 +131,7 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
     return X_cropped,Y_cropped,hys_img,coinciding_mask
 
 
-def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False):
+def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False,dump_json=False):
 
     # Extract all the 'wavelength' values into a list
     wavelengths = [info['wavelength'] for info in bands_dict.values()]
@@ -176,6 +176,18 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
     stats_30PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_30)
     stats_30_70PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_30_70)
     stats_85PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_85)
+    if dump_json:
+        data = {
+            'wavelengths_array': wavelengths_array.tolist(),
+            'avg_30PCI': stats_30PCI[1].tolist(),
+            'avg_85PCI': stats_85PCI[1].tolist(),
+            'std_30PCI': stats_30PCI[2].tolist(),
+            'std_85PCI': stats_85PCI[2].tolist()
+        }
+
+        # Convert to list and save as JSON
+        with open("pci_spectral_stats.json", "w") as file:
+            json.dump(data, file)
 
     def plot_scatter_over_map():
         # Plot the masked data using pcolormesh
@@ -199,6 +211,10 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
         plt.ylabel('AU')
         plt.xlabel('wavelength[mu]')
         plt.legend()
+
+    if plot:
+        plot_scatter_over_map()
+        plot_spectral_curves()
 
     plt.show()
 
@@ -266,8 +282,8 @@ if __name__ == "__main__":
 
     excel_path = 'seker_nezakim.xls'
 
-    roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
-    # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
+    # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
+    roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
 
 
     process_spectral_data(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
