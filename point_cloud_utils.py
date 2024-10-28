@@ -585,7 +585,7 @@ if __name__ == "__main__":
     ax.set_title("Spline Fit")
     ax.legend()
     cbar = fig.colorbar(im, ticks=[0, 30,70, 100], orientation='vertical')
-    cbar.ax.set_yticklabels(['severe','critical', 'moderate', 'ok'])
+    cbar.ax.set_yticklabels(['severe','critical', 'moderate', 'good'])
     plt.show()
 
     a = 1
