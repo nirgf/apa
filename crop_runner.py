@@ -2,6 +2,7 @@
 import os.path
 import json
 import numpy as np
+from pathlib import Path
 from PIL.ImageColor import colormap
 from sympy.abc import alpha
 from CONST import bands_dict
@@ -13,6 +14,7 @@ import point_cloud_utils as pc_utils
 from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
 import matplotlib
+import h5py
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
 
@@ -303,6 +305,94 @@ def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_m
 
     pass
 
+
+def test_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False,dump_json=False):
+
+    # Extract all the 'wavelength' values into a list
+    wavelengths = [info['wavelength'] for info in bands_dict.values()]
+    wavelengths_array = 1e-3 * np.array(wavelengths)
+    wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.values()])
+
+
+    GT_xy_PCI=get_GT_xy_PCI(excel_path)
+    points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
+
+    lon_mat,lat_mat,VenusImage,venusMetadata = get_hypter_spectral_imaginery(data_filename, data_dirname, metadata_filename, metadata_dirname)
+    X_cropped,Y_cropped,hys_img,coinciding_mask = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
+
+    # scatter_plot_with_annotations(points_PCI,ax_roi)
+    binary_mask = np.zeros(hys_img.shape[:-1])
+
+    # this function merge different lane into one PCI (assumption, may not always be valid)
+    # TODO: optimize threshold
+    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
+    xy_points_merge = points_merge_PCI[:, :2]
+
+    # # create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
+    extended_mask, line_string, xy_spline = pc_utils.fill_mask_with_irregular_spline(xy_points_merge, X_cropped,
+                                                                                     Y_cropped, binary_mask,
+                                                                                     combine_mask=False)  # this return mask in the pixels the spline line passes through
+    # to mask out coninciding mask only where there it a PCI data
+    extended_mask = pc_utils.dilate_mask(extended_mask, 5) * coinciding_mask
+
+    # create a segemented image of PCI values based on extendedn mask
+    grid_value = griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
+    segment_mask = grid_value * extended_mask
+    segment_mask[segment_mask <= 0] = np.nan
+
+    x_new, y_new = xy_spline
+
+    # this part create mask based on segmented PCI image
+    mask_below_30, mask_30_to_70, mask_above_85 = pc_utils.divide_array(segment_mask)
+    mask_all_channel_values_30 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_below_30))
+    mask_all_channel_values_85 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_above_85))
+    mask_all_channel_values_30_70 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_30_to_70))
+
+
+
+    mask_all_channel = np.repeat(np.expand_dims(extended_mask, axis=2), hys_img.shape[2], axis=2) * hys_img
+    mask_all_channel = nan_arr(mask_all_channel)
+    for ii in range(mask_all_channel.shape[0]):
+        for jj in range(mask_all_channel.shape[1]):
+            spectral_curve=mask_all_channel[ii,jj,:]
+
+
+# Function to save multi-band image parts and their tags
+def save_to_hdf5(save_folder,file_name, segments, tags,metadata=None):
+
+    #Saves multi-band image parts and their corresponding tags to an HDF5 file.
+    #mages: List or array of multi-band image parts (e.g., shape (N,W*H, B) where N is the number of images, H/W are height/width, and B is the number of bands).
+    #tags: List/Tuple or array of corresponding tags for each image part (e.g., shape (N,)).
+
+    with h5py.File(os.path.join(save_folder,file_name), 'w') as f:
+        for i, (arr, tag) in enumerate(zip(segments, tags)):
+            print(f'Saving:{arr.shape} size of tag {tag}')
+            if arr is not None and arr.size > 0:
+                # Create a dataset for each array
+                dataset_name = f'image_{i}'
+                f.create_dataset(dataset_name, data=arr, compression="gzip")
+                f.attrs[f'tag_{i}'] = tag  # Store the tag as an attribute
+            else:
+                # Handle None or empty arrays by creating an empty dataset
+                f.create_dataset(f'image_{i}', data=np.array([]), compression="gzip")
+                f.attrs[f'tag_{i}'] = tag
+
+
+
+def read_from_hdf5(file_name):
+    arrays = []
+    tags = []
+    with h5py.File(file_name, 'r') as f:
+        for key in f.keys():  # Iterate through dataset names
+            print(f'key:{key}')
+            arr = f[key][:]
+            arrays.append(arr)
+            tag = f.attrs[f'tag_{key.split("_")[1]}']  # Extract the tag by splitting the dataset name
+            tags.append(tag)
+    # Print the shapes and tags of the read data
+    for i, (arr, tag) in enumerate(zip(arrays, tags)):
+        print(f"Array {i}: shape={arr.shape}, tag={tag}")
+    return arrays, tags
 if __name__ == "__main__":
     # change only these paths or the ROI
     # %% Get venus data
