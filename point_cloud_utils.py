@@ -391,6 +391,33 @@ def fill_mask_with_line_point_values_irregular(line_string, points_xy_values, ma
     pass
 
 
+def divide_array(array, *args):
+    # Use default range values if *args is empty
+    if not args:
+        args = (30, 30, 70, 85)
+
+    # Check if *args has valid length (either 4 or 6)
+    if len(args) == 4:
+        arg1, arg2, arg3, arg4 = args
+        # Define conditions based on default or user-defined ranges
+        below_1 = array < arg1
+        between_1 = (array >= arg2) & (array <= arg3)
+        above_2 = array > arg4
+        return below_1, between_1, above_2
+
+    elif len(args) == 6:
+        arg1, arg2, arg3, arg4, arg5, arg6 = args
+        # Define conditions based on 6 argument ranges
+        below_1 = array < arg1
+        between_1 = (array >= arg2) & (array <= arg3)
+        between_2 = (array > arg4) & (array <= arg5)
+        above_3 = array > arg6
+        return below_1, between_1, between_2, above_3
+
+    else:
+        raise ValueError("The function requires either 4 or 6 arguments.")
+
+
 def create_masks(segmented_image):
     """
     Create masks based on the segmented image for three categories:
@@ -404,8 +431,8 @@ def create_masks(segmented_image):
     - mask_30_to_70: Boolean mask for labels between 30 and 70.
     - mask_above_85: Boolean mask for labels > 85.
     """
-    mask_below_30 = segmented_image < 30
-    mask_30_to_70 = (segmented_image >= 30) & (segmented_image <= 70)
+    mask_below_30 = segmented_image < 40
+    mask_30_to_70 = (segmented_image >= 40) & (segmented_image <= 70)
     mask_above_85 = segmented_image > 85
 
     return mask_below_30, mask_30_to_70, mask_above_85
