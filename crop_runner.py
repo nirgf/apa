@@ -23,6 +23,27 @@ plt.ion()
 # import UpdateGitIgnore
 # UpdateGitIgnore.main()
 
+def nan_arr(arr):
+    arr[arr <= 0] = np.nan
+    return arr
+
+
+def or_nan(x1, x2):
+    # Apply "or" operation between the arrays
+    result = np.where(np.isnan(x1) & np.isnan(x2), np.nan,  # If both are NaN, keep NaN
+                      np.where(np.isnan(x1), x2,  # If only x1 is NaN, use x2
+                               np.where(np.isnan(x2), x1,  # If only x2 is NaN, use x1
+                                        x1)))  # If neither is NaN, use x1
+    return result
+
+
+def plot_mask_over_gray_img(X_cropped, Y_cropped, hys_img,coinciding_mask,*args):
+    fig_ani, ax_ani = plt.subplots()
+    # Use pcolormesh to create the initial empty grid (binary mask)
+    im_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
+    c_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, coinciding_mask)
+    pass
+
 def get_GT_xy_PCI(xls_path):
     #%% get NA data
     df = pd.read_excel(xls_path)
