@@ -358,25 +358,42 @@ def test_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_
 
 
 # Function to save multi-band image parts and their tags
-def save_to_hdf5(save_folder,file_name, segments, tags,metadata=None):
+def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
+    with h5py.File(os.path.join(save_folder, file_name), 'a') as f:
+        for i, (arr, tag) in enumerate(zip(segements, tags)):
+            dataset_name = f'avg_PCI_{tag}'
 
-    #Saves multi-band image parts and their corresponding tags to an HDF5 file.
-    #mages: List or array of multi-band image parts (e.g., shape (N,W*H, B) where N is the number of images, H/W are height/width, and B is the number of bands).
-    #tags: List/Tuple or array of corresponding tags for each image part (e.g., shape (N,)).
+            if dataset_name in f:
+                if not (arr is not None and arr.size > 0):
+                    print('Skip:',dataset_name)
+                    continue
+                # Handle appending logic if the dataset already exists
+                dset = f[dataset_name]
+                original_shape = dset.shape
 
-    with h5py.File(os.path.join(save_folder,file_name), 'w') as f:
-        for i, (arr, tag) in enumerate(zip(segments, tags)):
-            print(f'Saving:{arr.shape} size of tag {tag}')
-            if arr is not None and arr.size > 0:
-                # Create a dataset for each array
-                dataset_name = f'image_{i}'
-                f.create_dataset(dataset_name, data=arr, compression="gzip")
-                f.attrs[f'tag_{i}'] = tag  # Store the tag as an attribute
+                # the array to append has the same shape except for the first dimension
+                new_shape = (original_shape[0],) + (original_shape[1] + arr.shape[1],)
+                dset.resize(new_shape)  # Resize to accommodate new data
+                dset[-arr.shape[0]:] = arr  # Append new data
+                print(f"Appended data to existing dataset '{dataset_name}'.")
+
             else:
-                # Handle None or empty arrays by creating an empty dataset
-                f.create_dataset(f'image_{i}', data=np.array([]), compression="gzip")
-                f.attrs[f'tag_{i}'] = tag
+                if arr is not None and arr.size > 0:
+                    # Create a new dataset with metadata if it doesn't exist
+                    dset = f.create_dataset(dataset_name, data=arr, maxshape=(None,) + arr.shape[1:],
+                                            compression="gzip")
+                    dset.attrs['tag'] = tag  # Store the tag as an attribute
+                    print(f"Created new dataset '{dataset_name}' with data and a tag.")
 
+                    # Add custom metadata if provided
+                    if metadata and i in metadata:
+                        for key, value in metadata[i].items():
+                            dset.attrs[key] = value  # Store custom metadata
+                else:
+                    # Create an empty dataset for None or empty arrays
+                    dset = f.create_dataset(dataset_name, data=np.array([]), compression="gzip")
+                    dset.attrs['tag'] = tag
+                    print(f"Created empty dataset '{dataset_name}' with a tag.")
 
 
 def read_from_hdf5(file_name):
