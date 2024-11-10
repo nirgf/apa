@@ -160,14 +160,9 @@ def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_n
     ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask, alpha=0.2)
     pass
 
-def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False,dump_json=False):
-
-    # Extract all the 'wavelength' values into a list
-    wavelengths = [info['wavelength'] for info in bands_dict.values()]
-    wavelengths_array = 1e-3 * np.array(wavelengths)
-    wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.values()])
 
 
+def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
     GT_xy_PCI=get_GT_xy_PCI(excel_path)
     points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
 
@@ -196,15 +191,37 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
 
     x_new, y_new = xy_spline
 
-    # this part create mask based on segmented PCI image
-    mask_below_30, mask_30_to_70, mask_above_85 = pc_utils.create_masks(segment_mask)
-    mask_all_channel_values_30 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_below_30))
-    mask_all_channel_values_85 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_above_85))
-    mask_all_channel_values_30_70 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_30_to_70))
+    return X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask
 
-    stats_30PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_30)
-    stats_30_70PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_30_70)
-    stats_85PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values_85)
+def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
+    # this part create mask based on segmented PCI image
+    assert(len(masks_tags_bounds)%2==0)
+    masks_segments = pc_utils.divide_array(segment_mask, *masks_tags_bounds)
+    masks_tags_numerical = (np.mean([0, masks_tags_bounds[0]]),) + tuple(
+        (np.mean([masks_tags_bounds[ii + 1], masks_tags_bounds[ii]])) for ii in
+        range(1, len(masks_tags_bounds) - 2, 2)) + (np.mean([masks_tags_bounds[-1], 100]),) # numerical value of tags as a mean of lower bound and upper bound of each segement, this will be used as tag value for each segement
+
+
+    print(f'# of masks segments: {len(masks_segments)}')
+    mask_all_channel_values=[]
+    for ms in masks_segments:
+        mask_all_channel_values.append(np.asarray(pc_utils.apply_masks_and_average(hys_img, ms)))
+
+    assert(len(mask_all_channel_values)==len(masks_tags_numerical))
+
+    return mask_all_channel_values,masks_tags_numerical
+
+
+def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask,plot=False ,plot_animation=False,dump_json=False):
+    # Extract all the 'wavelength' values into a list
+    wavelengths = [info['wavelength'] for info in bands_dict.values()]
+    wavelengths_array = 1e-3 * np.array(wavelengths)
+    wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.values()])
+
+    masks_tags_description=('Critical','Moderate','Good') # optional verbal description of the tags
+    stats_30PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values[0])
+    stats_50_70PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values[1])
+    stats_85PCI = pc_utils.get_stats_from_segment_spectral(mask_all_channel_values[2])
     if dump_json:
         data = {
             'wavelengths_array': wavelengths_array.tolist(),
@@ -218,49 +235,32 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
         with open("pci_spectral_stats.json", "w") as file:
             json.dump(data, file)
 
-    def plot_scatter_over_map():
-        # Plot the masked data using pcolormesh
-        fig_roi, ax_roi = plt.subplots()
-        im_ax = ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
-        pc_utils.scatter_plot_with_annotations(points_merge_PCI, ax_roi, markersize=100, linewidths=2, alpha=1)
-        ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
-        ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask, alpha=0.2)
-
     def plot_spectral_curves():
         # plot spectoroms
-        plt.figure(111)
+        plt.figure(110+np.random.randint(1,10))
         plt.plot(wavelengths_array, stats_30PCI[1], 'r', label=f'Critical , N_AVG={stats_30PCI[0]}')
         plt.errorbar(wavelengths_array, stats_30PCI[1], yerr=stats_30PCI[2], fmt='o', color='r', alpha=0.5)
+        plt.plot(wavelengths_array, stats_50_70PCI[1], 'y', label=f'Moderate , N_AVG={stats_50_70PCI[0]}')
+        plt.errorbar(wavelengths_array, stats_50_70PCI[1], yerr=stats_50_70PCI[2], fmt='o', color='y', alpha=0.5)
         plt.plot(wavelengths_array, stats_85PCI[1], 'g', label=f'Good , N_AVG={stats_85PCI[0]}')
         plt.errorbar(wavelengths_array, stats_85PCI[1], yerr=stats_85PCI[2], fmt='o', color='g', alpha=0.5)
-        plt.axvline(x=0.45, color='pink', linestyle='--', linewidth=1)
-        plt.axvline(x=0.75, color='pink', linestyle='--', linewidth=1)
-        plt.text(0.77, plt.ylim()[1] * 0.9, 'VIS', color='pink', fontsize=12, ha='center')
+        plt.axvline(x=0.45, color='pink', linestyle='--', linewidth=2)
+        plt.axvline(x=0.75, color='pink', linestyle='--', linewidth=2)
+        plt.text(0.72, plt.ylim()[1] * 0.9, 'VIS', color='pink', fontsize=12, ha='center')
+        plt.text(0.77, plt.ylim()[1] * 0.9, 'IR', color='pink', fontsize=12, ha='center')
         plt.title('Spectral Stats')
         plt.ylabel('AU')
         plt.xlabel('wavelength[mu]')
         plt.legend()
 
     if plot:
-        plot_scatter_over_map()
+        plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask)
         plot_spectral_curves()
 
     plt.show()
 
     if plot_animation:
         from matplotlib.animation import FuncAnimation
-
-        def nan_arr(arr):
-            arr[arr <= 0] = np.nan
-            return arr
-
-        def or_nan(x1, x2):
-            # Apply "or" operation between the arrays
-            result = np.where(np.isnan(x1) & np.isnan(x2), np.nan,  # If both are NaN, keep NaN
-                              np.where(np.isnan(x1), x2,  # If only x1 is NaN, use x2
-                                       np.where(np.isnan(x2), x1,  # If only x2 is NaN, use x1
-                                                x1)))  # If neither is NaN, use x1
-            return result
 
         # Initialize the plot
         fig_ani, ax_ani = plt.subplots()
@@ -275,7 +275,10 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
         # Use pcolormesh to create the initial empty grid (binary mask)
         im_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
         c_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, segment_mask, cmap=cmap_me, vmin=10, vmax=100)
-        ax_ani.set_xlim(35.10, np.max(X_cropped))
+        # use 35.10 to miss missing HSI data
+        # ax_ani.set_xlim(35.10, np.max(X_cropped))
+        ax_ani.set_xlim(np.min(X_cropped), np.max(X_cropped))
+
         ax_ani.set_ylim(np.min(Y_cropped), np.max(Y_cropped))
 
         # Function to update the mask in each frame
