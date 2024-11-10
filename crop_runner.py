@@ -151,6 +151,14 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
 
     return X_cropped,Y_cropped,hys_img,coinciding_mask
 
+def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask):
+    # Plot the masked data using pcolormesh
+    fig_roi, ax_roi = plt.subplots()
+    im_ax = ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
+    pc_utils.scatter_plot_with_annotations(points_merge_PCI, ax_roi, markersize=100, linewidths=2, alpha=1)
+    ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
+    ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask, alpha=0.2)
+    pass
 
 def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False,dump_json=False):
 
