@@ -313,21 +313,23 @@ def scatter_plot_with_annotations(points, ax=None,**kwargs):
     # Scatter plot overlay
     cmap_me = get_lighttraffic_colormap()
     cmap_kwargs = kwargs.get('cmap', cmap_me)
+    annotate_flag = kwargs.get('annotate_flag', True)
     markersize_kwargs = kwargs.get('markersize', 100)
     markeralpha_kwargs = kwargs.get('alpha', 0.5)
     linewidths_kwargs = kwargs.get('linewidths', 0.7)
 
     scatter = ax.scatter(x, y, c=values, s=markersize_kwargs, alpha=markeralpha_kwargs, edgecolor='black',linewidths=linewidths_kwargs,cmap=cmap_kwargs)
 
-    # Annotate each point with its rounded value
-    for i in range(len(points)):
-        ax.annotate(f'{int(round(values[i]))}',
-                    (x[i], y[i]),
-                    textcoords="offset points",  # Position text relative to point
-                    xytext=(10, 10),  # Offset the text slightly
-                    ha='center',  # Horizontal alignment
-                    fontsize=10,  # Font size for annotation
-                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='gray', facecolor='white'))
+    if annotate_flag:
+        # Annotate each point with its rounded value
+        for i in range(len(points)):
+            ax.annotate(f'{int(round(values[i]))}',
+                        (x[i], y[i]),
+                        textcoords="offset points",  # Position text relative to point
+                        xytext=(10, 10),  # Offset the text slightly
+                        ha='center',  # Horizontal alignment
+                        fontsize=10,  # Font size for annotation
+                        bbox=dict(boxstyle="round,pad=0.3", edgecolor='gray', facecolor='white'))
 
     # Return the axis object with the scatter plot
     return ax
@@ -581,6 +583,7 @@ def false_color_hyperspectral_image(hys_img):
     # Stack the normalized components to create an RGB image
     false_color_image = np.stack((red, green, blue), axis=-1)
     return false_color_image
+
 
 if __name__ == "__main__":
 
