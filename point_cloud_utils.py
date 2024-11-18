@@ -7,7 +7,9 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree
 from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
-from scipy.ndimage import binary_dilation,binary_erosion
+from skimage.morphology import disk, square,skeletonize
+from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing
+from scipy.ndimage import map_coordinates
 from scipy import stats
 import cv2
 import time
@@ -585,6 +587,52 @@ def false_color_hyperspectral_image(hys_img):
     return false_color_image
 
 
+def morphological_operator(binary_image, operation, structuring_element='disk', radius_or_size=3):
+    """
+    Applies a general morphological operation to a binary image.
+
+    Parameters:
+    - binary_image: ndarray
+        A binary image (2D array with True/False or 1/0 values).
+    - operation: str
+        The morphological operation to apply. Options are:
+        - 'dilation', 'erosion', 'opening', 'closing'.
+    - structuring_element: str or ndarray
+        The type of structuring element to use. Options are:
+        - 'disk', 'square', or a custom 2D ndarray.
+    - radius_or_size: int
+        The radius (for disk) or size (for square) of the structuring element.
+
+    Returns:
+    - result: ndarray
+        The binary image after applying the specified morphological operation.
+    """
+    # Create the structuring element
+    if isinstance(structuring_element, str):
+        if structuring_element == 'disk':
+            selem = disk(radius_or_size)
+        elif structuring_element == 'square':
+            selem = square(radius_or_size)
+        else:
+            raise ValueError("Unsupported structuring element. Use 'disk', 'square', or provide a custom ndarray.")
+    elif isinstance(structuring_element, np.ndarray):
+        selem = structuring_element
+    else:
+        raise ValueError("Invalid structuring element format. Must be 'disk', 'square', or a 2D ndarray.")
+
+    # Apply the specified morphological operation
+    if operation == 'dilation':
+        result = binary_dilation(binary_image, structure=selem)
+    elif operation == 'erosion':
+        result = binary_erosion(binary_image, structure=selem)
+    elif operation == 'opening':
+        result = binary_opening(binary_image, structure=selem)
+    elif operation == 'closing':
+        result = binary_closing(binary_image, structure=selem)
+    else:
+        raise ValueError("Unsupported operation. Use 'dilation', 'erosion', 'opening', or 'closing'.")
+
+    return result
 if __name__ == "__main__":
 
     # Example point cloud with value dimension
