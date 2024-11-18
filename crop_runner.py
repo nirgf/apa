@@ -184,9 +184,10 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
                                                                                      Y_cropped, binary_mask,
                                                                                      combine_mask=False)  # this return mask in the pixels the spline line passes through
     # to mask out coninciding mask only where there it a PCI data
+    # TODO: optimzie radius and size of sturcture element in the morphological operators
     combine_mask_roads = pc_utils.morphological_operator(extended_mask,'dilation',
                                                          'square',
-                                                          5) \
+                                                          20) \
                           * coinciding_mask
     combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads,'closing','disk', 5)
 
