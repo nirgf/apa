@@ -26,6 +26,7 @@ from crop_runner import nan_arr
 PURPLE_ON_BLACK = "\033[45;30m"
 RESET = "\033[0m"
 
+PIXEL_SZ= 4 # pixel size in meter
 
 def log_execution_time(func):
     """
@@ -770,10 +771,10 @@ def analyze_and_plot_grouped_histogram(image, group_range=1, min_value=1):
 
     # Plot histogram
     plt.figure(figsize=(10, 6))
-    plt.bar(grouped_values, counts, width=group_range * 0.9, color='skyblue', edgecolor='black')
-    plt.xlabel('Grouped Pixel Values')
-    plt.ylabel('Count')
-    plt.title('Histogram of Grouped Pixel Values')
+    plt.bar(grouped_values, counts*PIXEL_SZ**2, width=group_range * 0.9, color='skyblue', edgecolor='black')
+    plt.xlabel('PCI Values')
+    plt.ylabel('Estimated area')
+    plt.title('Histogram of PCI Values')
     plt.xticks(grouped_values, rotation=45)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.show()
