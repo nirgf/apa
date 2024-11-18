@@ -184,11 +184,15 @@ def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metada
                                                                                      Y_cropped, binary_mask,
                                                                                      combine_mask=False)  # this return mask in the pixels the spline line passes through
     # to mask out coninciding mask only where there it a PCI data
-    extended_mask = pc_utils.dilate_mask(extended_mask, 5) * coinciding_mask
+    combine_mask_roads = pc_utils.morphological_operator(extended_mask,'dilation',
+                                                         'square',
+                                                          5) \
+                          * coinciding_mask
+    combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads,'closing','disk', 5)
 
     # create a segemented image of PCI values based on extendedn mask
     grid_value = griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-    segment_mask = grid_value * extended_mask
+    segment_mask = grid_value * combine_mask_roads
     segment_mask[segment_mask <= 0] = np.nan
 
     x_new, y_new = xy_spline
