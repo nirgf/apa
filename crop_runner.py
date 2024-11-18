@@ -458,12 +458,12 @@ if __name__ == "__main__":
     roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
 
-    masks_tags_bounds = (30, 50, 70, 85)  # PCI bounds tags of each segements in format
+    # masks_tags_bounds = (30,30,60,60, 80, 85)  # PCI bounds tags of each segements in format
     # (segement1_upperbound,segement2_lowerbound,segement2_upperbound,segement3_lowerbound,segement3_upperbound.....,segement_N_lowerbound)
-    create_hdf5_segemets_tags(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
-                          metadata_filename=metadata_filename,excel_path=excel_path,masks_tags_bounds=masks_tags_bounds)
+    # create_hdf5_segemets_tags(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
+    #                       metadata_filename=metadata_filename,excel_path=excel_path,masks_tags_bounds=masks_tags_bounds)
 
-    # crop_runner_main(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
-    #                       metadata_filename=metadata_filename,excel_path=excel_path)
+    crop_runner_main(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
+                          metadata_filename=metadata_filename,excel_path=excel_path)
 
 
