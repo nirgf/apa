@@ -164,7 +164,7 @@ def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_n
 
 
 
-def process_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
+def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
     GT_xy_PCI=get_GT_xy_PCI(excel_path)
     points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
 
@@ -418,7 +418,7 @@ def read_from_hdf5(file_name):
 
 
 def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,masks_tags_bounds):
-    X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_spectral_data(
+    X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_geo_data(
         roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
         metadata_filename=metadata_filename, excel_path=excel_path)
 
@@ -430,9 +430,11 @@ def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,me
     pass
 
 def crop_runner_main(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
-    X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_spectral_data(
+    X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_geo_data(
         roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
         metadata_filename=metadata_filename, excel_path=excel_path)
+
+    unique_values, counts = pc_utils.analyze_and_plot_grouped_histogram(segment_mask,group_range=5,min_value=1)
     masks_tags_bounds = (30, 50, 70, 85)  # bounds tags of each segements in format
     # (segement1_upperbound,segement2_lowerbound,segement2_upperbound,segement3_lowerbound,segement3_upperbound.....,segement_N_lowerbound)
     mask_all_channel_values, masks_tags_numerical = create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
