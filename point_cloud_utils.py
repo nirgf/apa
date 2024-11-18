@@ -9,6 +9,9 @@ from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from skimage.morphology import disk, square,skeletonize
 from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing
+from scipy.ndimage import distance_transform_edt, label
+from scipy.spatial import distance
+from collections import defaultdict, deque
 from scipy.ndimage import map_coordinates
 from scipy import stats
 import cv2
@@ -16,6 +19,8 @@ import time
 import functools
 from GetRoadsModule import GetRoadsCoordinates
 from sklearn.decomposition import PCA
+
+from crop_runner import nan_arr
 
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -587,6 +592,47 @@ def false_color_hyperspectral_image(hys_img):
     return false_color_image
 
 
+def grow_mask_along_line(mask_shape, line_coords, parallel_width=10, perpendicular_width=2):
+    """
+    Grows a binary mask around a line in specific parallel and perpendicular directions.
+
+    Parameters:
+    - mask_shape: Tuple representing the shape of the binary mask (height, width).
+    - line_coords: List of tuples [(x1, y1), (x2, y2), ...] representing the line's pixel coordinates.
+    - parallel_width: Number of pixels to grow along the line's direction.
+    - perpendicular_width: Number of pixels to grow perpendicular to the line's direction.
+
+    Returns:
+    - A binary mask of the same shape as `mask_shape`, grown around the input line.
+    """
+    mask = np.zeros(mask_shape, dtype=bool)
+
+    for i in range(len(line_coords) - 1):
+        # Current segment of the line
+        x1, y1 = line_coords[i]
+        x2, y2 = line_coords[i + 1]
+
+        # Compute tangent vector and normalize
+        dx, dy = x2 - x1, y2 - y1
+        length = np.sqrt(dx ** 2 + dy ** 2)
+        tangent = (dx / length, dy / length)
+
+        # Compute perpendicular vector
+        perpendicular = (-tangent[1], tangent[0])  # Rotate tangent by 90 degrees
+
+        # Create a rectangular region around the segment
+        for offset_parallel in range(-parallel_width, parallel_width + 1):
+            for offset_perpendicular in range(-perpendicular_width, perpendicular_width + 1):
+                # Shift along parallel and perpendicular directions
+                x_shift = int(x1 + offset_parallel * tangent[0] + offset_perpendicular * perpendicular[0])
+                y_shift = int(y1 + offset_parallel * tangent[1] + offset_perpendicular * perpendicular[1])
+
+                # Add to the mask if within bounds
+                if 0 <= x_shift < mask_shape[0] and 0 <= y_shift < mask_shape[1]:
+                    mask[x_shift, y_shift] = True
+
+    return mask
+
 def morphological_operator(binary_image, operation, structuring_element='disk', radius_or_size=3):
     """
     Applies a general morphological operation to a binary image.
@@ -733,6 +779,602 @@ def analyze_and_plot_grouped_histogram(image, group_range=1, min_value=1):
     plt.show()
 
     return grouped_values, counts
+
+
+def extract_windows_with_overlap(image, mask, window_length=40, window_width=3, overlap_percentage=50):
+    """
+    Extracts windows of size (window_length x window_width) along a binary mask with specified overlap.
+
+    Parameters:
+    - image: ndarray
+        Hyperspectral image of shape (height, width, bands).
+    - mask: ndarray
+        Binary mask of shape (height, width), where 1 indicates the line region.
+    - window_length: int
+        Length of the window along the mask.
+    - window_width: int
+        Width of the window perpendicular to the mask.
+    - overlap_percentage: float
+        Percentage of overlap between consecutive windows (e.g., 50 for 50% overlap).
+
+    Yields:
+    - window: ndarray
+        Extracted window of shape (window_length, window_width, bands).
+    - center: tuple
+        Center coordinates (row, col) of the window.
+    """
+    height, width, bands = image.shape
+
+    # Calculate stride based on overlap percentage
+    stride = int(window_length * (1 - overlap_percentage / 100))
+
+    # Find mask coordinates
+    mask_coords = np.argwhere(mask == 1)
+
+    # Iterate through mask coordinates with calculated stride
+    for i in range(0, len(mask_coords) - stride, stride):
+        # Center of the current window
+        cy, cx = mask_coords[i]
+
+        # Define window bounds
+        row_start = max(0, cy - window_length // 2)
+        row_end = min(height, cy + window_length // 2)
+        col_start = max(0, cx - window_width // 2)
+        col_end = min(width, cx + window_width // 2)
+
+        # Extract the window
+        window = image[row_start:row_end, col_start:col_end, :]
+
+        # Ensure the window has the correct shape
+        if window.shape[:2] == (window_length, window_width):
+            yield window, (cy, cx)
+
+
+def visualize_windows_with_colors(mask, window_generator, window_length=16, window_width=3):
+    """
+    Visualizes windows as distinct colors overlaid on the binary mask.
+
+    Parameters:
+    - image: ndarray
+        Hyperspectral image of shape (height, width, bands).
+    - mask: ndarray
+        Binary mask of shape (height, width).
+    - window_generator: generator
+        A generator that yields extracted windows and their centers.
+    - window_length: int
+        Length of each window.
+    - window_width: int
+        Width of each window.
+    """
+    # Create a copy of the mask for coloring
+    colored_mask = np.zeros_like(mask, dtype=float)
+
+    # Overlay colors for each window
+    color_value = 1  # Start with an arbitrary value for coloring
+    for _, (cy, cx) in window_generator:
+        # Define window bounds
+        row_start = max(0, cy - window_length // 2)
+        row_end = min(mask.shape[0], cy + window_length // 2)
+        col_start = max(0, cx - window_width // 2)
+        col_end = min(mask.shape[1], cx + window_width // 2)
+
+        # Assign a unique color to the window area
+        colored_mask[row_start:row_end, col_start:col_end] = color_value
+        color_value += 1  # Increment the color value for the next window
+
+    # Visualize the mask with overlaid window colors
+    plt.figure(figsize=(10, 10))
+    plt.imshow(colored_mask, cmap="tab20", interpolation="nearest")
+    plt.title("Windows Visualized as Colors on Binary Mask")
+    plt.axis("off")
+    plt.colorbar(label="Window ID")
+    plt.show()
+
+# def extract_windows_along_skeleton(image, skeleton, window_length=16, window_width=3, overlap=0.5):
+#     """
+#     Extract windows along a skeletonized path.
+#
+#     Parameters:
+#     - image: ndarray
+#         Original image (if needed for data extraction).
+#     - skeleton: ndarray
+#         Skeletonized binary mask.
+#     - window_length: int
+#         Length of the window along the path.
+#     - window_width: int
+#         Width of the window perpendicular to the path.
+#     - overlap: float
+#         Overlap between consecutive windows (0 to 1).
+#
+#     Returns:
+#     - windows: list of ndarrays
+#         Extracted windows of shape (window_length, window_width).
+#     - centers: list of tuples
+#         Center coordinates of each window.
+#     """
+#     # Get skeleton coordinates
+#     coords = np.argwhere(skeleton > 0)  # y, x coordinates
+#     windows = []
+#     centers = []
+#     step = int(window_length * (1 - overlap))  # Step size based on overlap
+#     all_masks=[]
+#     for i in range(0, len(coords) - window_length, step):
+#         # Get the window's center coordinates
+#         center_coords = coords[i: i + window_length]
+#
+#         # Fit tangent and perpendicular directions
+#         tangent_vector = np.mean(np.diff(center_coords, axis=0), axis=0)
+#         tangent_vector /= np.linalg.norm(tangent_vector)  # Normalize
+#
+#         perpendicular_vector = np.array([-tangent_vector[1], tangent_vector[0]])
+#
+#         # Create the window
+#         window = np.zeros((window_length, window_width))
+#         for j, (cy, cx) in enumerate(center_coords):
+#             for w in range(-window_width // 2, window_width // 2 + 1):
+#                 offset = w * perpendicular_vector
+#                 wy, wx = int(cy + offset[0]), int(cx + offset[1])
+#
+#                 # Check bounds
+#                 if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+#                     window[j, w + window_width // 2] = image[wy, wx]
+#                     tmp = zeros_like(image)
+#                     tmp[wy, wx]=1
+#                     all_masks.append(tmp)
+#         windows.append(window)
+#         centers.append(center_coords[window_length // 2])
+#
+#     return windows, centers,all_masks
+
+
+
+# def extract_fixed_windows(image, skeleton, window_length=16, window_width=3, overlap=0.5,debug=False):
+#     """
+#     Extract windows along a skeletonized path with robustness to boundary and tangent issues.
+#
+#     Parameters:
+#     - image: ndarray
+#         Input image to extract windows from.
+#     - skeleton: ndarray
+#         Binary skeleton mask (single-pixel width path).
+#     - window_length: int
+#         Length of the window along the skeleton.
+#     - window_width: int
+#         Width of the window perpendicular to the skeleton.
+#     - overlap: float
+#         Overlap percentage (0 to 1).
+#
+#     Returns:
+#     - windows: list of ndarrays
+#         List of extracted windows.
+#     - centers: list of tuples
+#         List of window center coordinates.
+#     """
+#     coords = np.argwhere(skeleton > 0)
+#     windows = []
+#     centers = []
+#     all_masks = []
+#     step = int(window_length * (1 - overlap))
+#
+#     for i in range(0, len(coords) - window_length, step):
+#         # Extract skeleton segment
+#         segment = coords[i : i + window_length]
+#         tangent = np.mean(np.diff(segment, axis=0), axis=0)
+#         if np.linalg.norm(tangent) > 0:
+#             tangent /= np.linalg.norm(tangent)
+#         else:
+#             continue  # Skip if tangent is invalid
+#
+#         # Perpendicular vector
+#         perpendicular = np.array([-tangent[1], tangent[0]])
+#
+#         # Initialize window
+#         window = np.zeros((window_length, window_width))
+#         for j, (cy, cx) in enumerate(segment):
+#             for w in range(-window_width // 2, window_width // 2 + 1):
+#                 offset = w * perpendicular
+#                 wy, wx = int(cy + offset[0]), int(cx + offset[1])
+#
+#                 # Check bounds
+#                 if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+#                     window[j, w + window_width // 2] = image[wy, wx]
+#
+#         windows.append(window)
+#         centers.append(segment[window_length // 2])
+#         all_masks
+#
+#     return windows, centers
+
+
+def skeletonize_mask(binary_mask):
+    """
+    Skeletonize the binary mask to obtain a single-pixel width path.
+    """
+    return skeletonize(binary_mask)
+
+
+def extract_fixed_windows(image, binary_mask, window_length=16, window_width=3, overlap=0.5, debug=False):
+    """
+    Extract windows along a skeletonized path with robustness to boundary and tangent issues.
+    Optionally, debug by overlaying extracted windows in different colors on the original mask.
+
+    Parameters:
+    - image: ndarray
+        Input image to extract windows from.
+    - skeleton: ndarray
+        Binary skeleton mask (single-pixel width path).
+    - window_length: int
+        Length of the window along the skeleton.
+    - window_width: int
+        Width of the window perpendicular to the skeleton.
+    - overlap: float
+        Overlap percentage (0 to 1).
+    - debug: bool
+        If True, displays extracted windows as overlays on the original skeleton.
+
+    Returns:
+    - windows: list of ndarrays
+        List of extracted windows.
+    - centers: list of tuples
+        List of window center coordinates.
+    """
+
+    skeleton = skeletonize_mask(binary_mask)
+    coords = np.argwhere(skeleton > 0)
+    windows = []
+    centers = []
+    step = int(window_length * (1 - overlap))
+
+    # Initialize a debug mask if debugging is enabled
+    if debug:
+        debug_mask = np.zeros_like(skeleton, dtype=float)
+
+    for i in range(0, len(coords) - window_length, step):
+        # Extract skeleton segment
+        segment = coords[i: i + window_length]
+        tangent = np.mean(np.diff(segment, axis=0), axis=0)
+        if np.linalg.norm(tangent) > 0:
+            tangent /= np.linalg.norm(tangent)
+        else:
+            continue  # Skip if tangent is invalid
+
+        # Perpendicular vector
+        # perpendicular=[−tangent_y,tangent_x]
+        perpendicular = np.array([-tangent[1], tangent[0]])
+        print(f"tangent:{tangent}\tperpendicular{perpendicular}")
+        # Initialize window
+        window = np.zeros((window_length, window_width))
+        for j, (cy, cx) in enumerate(segment):
+            for w in range(-window_width // 2, window_width // 2 + 1):
+                offset = w * perpendicular
+                wy, wx = int(cy + offset[0]), int(cx + offset[1])
+
+                # Check bounds
+                if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+                    window[j, w + window_width // 2] = image[wy, wx,:]
+
+                    # Mark the window on the debug mask
+                    if debug:
+                        debug_mask[wy, wx] = i + 1  # Assign unique value for each window
+
+        windows.append(window)
+        centers.append(segment[window_length // 2])
+
+    # Visualize the debug mask if debugging is enabled
+    debug_mask[debug_mask<=0]=np.nan
+    if debug:
+        plt.figure(figsize=(10, 10))
+        plt.imshow(debug_mask, cmap="tab20", interpolation="nearest")
+        plt.title("Debug Visualization: Windows Overlaid on Mask")
+        plt.axis("off")
+        plt.colorbar(label="Window ID")
+        plt.show()
+
+    return windows, centers
+
+
+def extract_windows_from_paths(image, paths, window_length=16, window_width=3, overlap=0.5, debug=False):
+    """
+    Extract small overlapping windows along all paths in the skeleton graph.
+
+    Parameters:
+    - image: ndarray
+        Input image to extract windows from.
+    - paths: list of lists
+        List of paths, where each path is a list of node coordinates.
+    - window_length: int
+        Length of each window along the path.
+    - window_width: int
+        Width of each window perpendicular to the path.
+    - overlap: float
+        Overlap percentage between consecutive windows (0 to 1).
+    - debug: bool
+        If True, visualize the windows as overlays.
+
+    Returns:
+    - windows: list of ndarrays
+        List of extracted windows (shape: window_length x window_width).
+    - centers: list of tuples
+        List of center coordinates for each window.
+    """
+    windows = []
+    centers = []
+    debug_mask = np.zeros_like(image, dtype=float) if debug else None
+
+    for path in paths:
+        step = int(window_length * (1 - overlap))
+        for i in range(0, len(path) - window_length, step):
+            segment = path[i: i + window_length]
+
+            # Compute tangents for the segment
+            tangents = np.diff(segment, axis=0)
+            tangent = np.mean(tangents, axis=0)  # Average tangent direction
+            tangent = tangent / np.linalg.norm(tangent)
+
+            # Compute perpendicular direction
+            perpendicular = np.array([-tangent[1], tangent[0]])
+
+            # Extract the window
+            window = np.zeros((window_length, window_width))
+            valid_window = True
+            for j, (cy, cx) in enumerate(segment):
+                for k in range(-window_width // 2, window_width // 2 + 1):
+                    offset = k * perpendicular
+                    wy, wx = int(cy + offset[0]), int(cx + offset[1])
+
+                    # Check bounds
+                    if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+                        window[j, k + window_width // 2] = image[wy, wx]
+                        if debug:
+                            debug_mask[wy, wx] = len(windows) + 1
+                    else:
+                        valid_window = False
+
+            if valid_window:
+                windows.append(window)
+                centers.append(segment[len(segment) // 2])
+
+    # Debug visualization
+    if debug:
+        plt.figure(figsize=(10, 10))
+        plt.imshow(debug_mask, cmap="tab20", interpolation="nearest")
+        plt.title("Windows Overlaid on Skeleton")
+        plt.axis("off")
+        plt.colorbar(label="Window ID")
+        plt.show()
+
+    return windows, centers
+
+
+def skeleton_to_graph(skeleton):
+    """
+    Convert a skeletonized mask into a graph representation.
+    Each skeleton pixel is treated as a node, and edges connect neighboring pixels.
+
+    Parameters:
+    - skeleton: ndarray
+        Binary skeleton mask (1 for skeleton pixels, 0 otherwise).
+
+    Returns:
+    - graph: dict
+        Adjacency list representation of the skeleton graph.
+    - nodes: list of tuples
+        List of all skeleton pixel coordinates.
+    """
+    coords = np.argwhere(skeleton > 0)
+    graph = defaultdict(list)
+
+    # Define 8-connectivity
+    for y, x in coords:
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                if dy == 0 and dx == 0:
+                    continue  # Skip the center pixel
+                ny, nx = y + dy, x + dx
+                if (ny, nx) in [tuple(c) for c in coords]:
+                    graph[(y, x)].append((ny, nx))
+
+    return graph, [tuple(c) for c in coords]
+
+
+def find_paths(graph, start_node):
+    """
+    Find all paths in the skeleton graph using a depth-first search.
+
+    Parameters:
+    - graph: dict
+        Adjacency list representation of the skeleton graph.
+    - start_node: tuple
+        Starting node for the DFS traversal.
+
+    Returns:
+    - paths: list of lists
+        List of paths, where each path is a list of node coordinates.
+    """
+    visited = set()
+    paths = []
+    stack = [(start_node, [start_node])]
+
+    while stack:
+        current_node, path = stack.pop()
+        if current_node in visited:
+            continue
+        visited.add(current_node)
+
+        # Check if this is a leaf node (end of a path)
+        neighbors = [n for n in graph[current_node] if n not in visited]
+        if not neighbors:
+            paths.append(path)
+        else:
+            for neighbor in neighbors:
+                stack.append((neighbor, path + [neighbor]))
+
+    return paths
+
+
+def extract_windows_from_paths(image, paths, window_length=16, window_width=3, overlap=0.5, debug=False):
+    """
+    Extract small overlapping windows along all paths in the skeleton graph.
+
+    Parameters:
+    - image: ndarray
+        Input image to extract windows from.
+    - paths: list of lists
+        List of paths, where each path is a list of node coordinates.
+    - window_length: int
+        Length of each window along the path.
+    - window_width: int
+        Width of each window perpendicular to the path.
+    - overlap: float
+        Overlap percentage between consecutive windows (0 to 1).
+    - debug: bool
+        If True, visualize the windows as overlays.
+
+    Returns:
+    - windows: list of ndarrays
+        List of extracted windows (shape: window_length x window_width).
+    - centers: list of tuples
+        List of center coordinates for each window.
+    """
+    windows = []
+    centers = []
+    debug_mask = np.zeros_like(image, dtype=float) if debug else None
+
+    for path in paths:
+        step = int(window_length * (1 - overlap))
+        for i in range(0, len(path) - window_length, step):
+            segment = path[i: i + window_length]
+
+            # Compute tangents for the segment
+            tangents = np.diff(segment, axis=0)
+            tangent = np.mean(tangents, axis=0)  # Average tangent direction
+            tangent = tangent / np.linalg.norm(tangent)
+
+            # Compute perpendicular direction
+            perpendicular = np.array([-tangent[1], tangent[0]])
+
+            # Extract the window
+            window = np.zeros((window_length, window_width))
+            valid_window = True
+            for j, (cy, cx) in enumerate(segment):
+                for k in range(-window_width // 2, window_width // 2 + 1):
+                    offset = k * perpendicular
+                    wy, wx = int(cy + offset[0]), int(cx + offset[1])
+
+                    # Check bounds
+                    if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+                        window[j, k + window_width // 2] = image[wy, wx]
+                        if debug:
+                            debug_mask[wy, wx] = len(windows) + 1
+                    else:
+                        valid_window = False
+
+            if valid_window:
+                windows.append(window)
+                centers.append(segment[len(segment) // 2])
+
+    # Debug visualization
+    if debug:
+        plt.figure(figsize=(10, 10))
+        plt.imshow(debug_mask, cmap="tab20", interpolation="nearest")
+        plt.title("Windows Overlaid on Skeleton")
+        plt.axis("off")
+        plt.colorbar(label="Window ID")
+        plt.show()
+
+    return windows, centers
+
+
+def extract_windows_from_mask(image, mask, window_length=16, window_width=3, overlap=0.5, debug=True):
+    """
+    Extract windows along a mask with variable width.
+
+    Parameters:
+    - image: ndarray
+        The input 2D or multi-channel image.
+    - mask: ndarray
+        Binary mask where 1 indicates the region of interest.
+    - window_length: int
+        Length of each window along the mask's centerline.
+    - window_width: int
+        Width of each window perpendicular to the mask's centerline.
+    - overlap: float
+        Overlap percentage between consecutive windows (0 to 1).
+    - debug: bool
+        If True, visualize the extracted windows as overlays.
+
+    Returns:
+    - windows: list of ndarrays
+        List of extracted windows (shape: window_length x window_width).
+    - centers: list of tuples
+        List of center coordinates for each window.
+    """
+    # Compute the distance transform of the mask to find the centerline
+    dist_transform = distance_transform_edt(mask)
+    # centerline = (dist_transform > (dist_transform.max() / 2)).astype(int)
+
+    # Label connected components of the centerline
+    labeled_centerline, num_features = label(dist_transform)
+
+    windows = []
+    centers = []
+    debug_mask = np.zeros_like(mask, dtype=float) if debug else None
+
+    for label_idx in range(1, num_features + 1):
+        # Extract the coordinates of the current centerline
+        coords = np.argwhere(labeled_centerline == label_idx)
+
+        # Sort the coordinates along the centerline
+        coords = coords[np.argsort(coords[:, 0])]
+
+        step = int(window_length * (1 - overlap))
+        for i in range(0, len(coords) - window_length, step):
+            segment = coords[i: i + window_length]
+
+            # Compute tangent for the segment
+            tangents = np.diff(segment, axis=0)
+            tangent = np.mean(tangents, axis=0)  # Average tangent direction
+            tangent = tangent / np.linalg.norm(tangent)
+
+            # Compute perpendicular direction
+            perpendicular = np.array([-tangent[1], tangent[0]])
+
+            # Extract the window
+            window = np.zeros((window_length, window_width, image.shape[2]))
+            valid_window = True
+
+            for j, (cy, cx) in enumerate(segment):
+                for k in range(-window_width // 2, window_width // 2 + 1):
+                    offset = k * perpendicular
+                    wy = int(cy + offset[0])
+                    wx = int(cx + offset[1])
+
+                    # Check bounds
+                    if 0 <= wy < image.shape[0] and 0 <= wx < image.shape[1]:
+                        window[j, k + window_width // 2,:] = image[wy, wx,:]
+                        if debug:
+                            debug_mask[wy, wx] = len(windows) + 1
+                    else:
+                        valid_window = False
+
+            if valid_window:
+                windows.append(window)
+                centers.append(segment[len(segment) // 2])
+
+    # Debug visualization
+    if debug:
+        plt.figure(figsize=(10, 10))
+        plt.imshow(mask, cmap="gray", alpha=0.5)
+        plt.imshow(nan_arr(debug_mask), cmap="prism", interpolation="nearest", alpha=0.8)
+        plt.title("Windows Overlaid on Mask")
+        plt.axis("off")
+        plt.colorbar(label="Window ID")
+        plt.show()
+
+    return windows, centers
+
+
+
 if __name__ == "__main__":
 
     # Example point cloud with value dimension
