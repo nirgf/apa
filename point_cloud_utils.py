@@ -633,6 +633,106 @@ def morphological_operator(binary_image, operation, structuring_element='disk', 
         raise ValueError("Unsupported operation. Use 'dilation', 'erosion', 'opening', or 'closing'.")
 
     return result
+
+
+def analyze_and_plot_histogram_with_nan(image):
+    """
+    Analyzes unique values in an image, including handling NaN, and plots their histogram.
+
+    Parameters:
+    - image: ndarray
+        2D array representing the image.
+
+    Returns:
+    - unique_values: ndarray
+        Array of unique values in the image, excluding NaN.
+    - counts: ndarray
+        Array of counts corresponding to each unique value.
+    - nan_count: int
+        Count of NaN values in the image.
+    """
+    # Flatten the image to a 1D array for analysis
+    flat_image = image.flatten()
+
+    # Count NaN values
+    nan_count = np.sum(np.isnan(flat_image))
+
+    # Remove NaN values for unique value analysis
+    valid_pixels = flat_image[~np.isnan(flat_image)]
+
+    # Find unique values and their counts
+    unique_values, counts = np.unique(valid_pixels, return_counts=True)
+
+    # Print unique values and their counts
+    print("Unique Values and Their Counts (excluding NaN):")
+    for value, count in zip(unique_values, counts):
+        print(f"Value: {value}, Count: {count}")
+
+    # Print count of NaN values
+    print(f"NaN Count: {nan_count}")
+
+    # Plot histogram
+    plt.figure(figsize=(10, 6))
+    plt.bar(unique_values, counts, color='skyblue', edgecolor='black', label='Valid Values')
+    if nan_count > 0:
+        plt.bar(-1, nan_count, color='red', edgecolor='black', label='NaN Count')  # Use -1 to represent NaN
+    plt.xlabel('Pixel Values')
+    plt.ylabel('Count')
+    plt.title('Histogram of Pixel Values (Including NaN)')
+    plt.xticks(np.append(unique_values, -1), rotation=45)  # Include -1 for NaN label
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.legend()
+    plt.show()
+
+    return unique_values, counts, nan_count
+
+
+def analyze_and_plot_grouped_histogram(image, group_range=1, min_value=1):
+    """
+    Analyzes unique values in an image, groups them into bins, and plots a histogram.
+
+    Parameters:
+    - image: ndarray
+        2D array representing the image.
+    - group_range: float
+        The range of values to group together (e.g., ±1 groups into bins of size 2).
+    - min_value: float
+        Minimum pixel value to include in the analysis.
+
+    Returns:
+    - grouped_values: ndarray
+        The grouped values.
+    - counts: ndarray
+        The counts corresponding to each group.
+    """
+    # Flatten the image to a 1D array for analysis
+    flat_image = image.flatten()
+
+    # Filter out unwanted values (<= min_value)
+    valid_pixels = flat_image[flat_image > min_value]
+
+    # Group values within the specified range
+    grouped_pixels = np.round(valid_pixels / group_range) * group_range
+
+    # Find unique grouped values and their counts
+    grouped_values, counts = np.unique(grouped_pixels, return_counts=True)
+
+    # Print grouped values and their counts
+    print("Grouped Values and Their Counts:")
+    for value, count in zip(grouped_values, counts):
+        print(f"Value: {value}, Count: {count}")
+
+    # Plot histogram
+    plt.figure(figsize=(10, 6))
+    plt.bar(grouped_values, counts, width=group_range * 0.9, color='skyblue', edgecolor='black')
+    plt.xlabel('Grouped Pixel Values')
+    plt.ylabel('Count')
+    plt.title('Histogram of Grouped Pixel Values')
+    plt.xticks(grouped_values, rotation=45)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.show()
+
+    return grouped_values, counts
 if __name__ == "__main__":
 
     # Example point cloud with value dimension
