@@ -1,16 +1,15 @@
-#%% import pandas
 import os.path
 import json
 import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
-from sympy.abc import alpha
 from CONST import bands_dict
 import CovertITM2LatLon
 import pandas as pd
 import ImportVenusModule
 import matplotlib.pyplot as plt
 import point_cloud_utils as pc_utils
+import pc_plot_utils as plt_utils
 from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
 import matplotlib
@@ -18,33 +17,12 @@ import h5py
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
 
-cmap_me = pc_utils.get_lighttraffic_colormap()
+cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
 
 #%% Update Git Rules so the push will not get stuck
 # import UpdateGitIgnore
 # UpdateGitIgnore.main()
-
-def nan_arr(arr):
-    arr[arr <= 0] = np.nan
-    return arr
-
-
-def or_nan(x1, x2):
-    # Apply "or" operation between the arrays
-    result = np.where(np.isnan(x1) & np.isnan(x2), np.nan,  # If both are NaN, keep NaN
-                      np.where(np.isnan(x1), x2,  # If only x1 is NaN, use x2
-                               np.where(np.isnan(x2), x1,  # If only x2 is NaN, use x1
-                                        x1)))  # If neither is NaN, use x1
-    return result
-
-
-def plot_mask_over_gray_img(X_cropped, Y_cropped, hys_img,coinciding_mask,*args):
-    fig_ani, ax_ani = plt.subplots()
-    # Use pcolormesh to create the initial empty grid (binary mask)
-    im_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
-    c_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, coinciding_mask)
-    pass
 
 def get_GT_xy_PCI(xls_path):
     #%% get NA data
@@ -153,16 +131,6 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
 
     return X_cropped,Y_cropped,hys_img,coinciding_mask
 
-def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask):
-    # Plot the masked data using pcolormesh
-    fig_roi, ax_roi = plt.subplots()
-    im_ax = ax_roi.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
-    pc_utils.scatter_plot_with_annotations(points_merge_PCI, ax_roi, markersize=100, linewidths=2, alpha=1)
-    ax_roi.plot(x_new, y_new, 'b--', label='Spline Fit')
-    ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask, alpha=0.2)
-    pass
-
-
 
 def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
     GT_xy_PCI=get_GT_xy_PCI(excel_path)
@@ -261,7 +229,7 @@ def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_m
         plt.legend()
 
     if plot:
-        plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask)
+        plt_utils.plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask)
         plot_spectral_curves()
 
     plt.show()
@@ -278,7 +246,7 @@ def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_m
         # Adjust the axis to fill the figure
         ax_ani.set_position([0, 0, 1, 1])  # Fill entire figure with the axis
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # No margins around the plot
-        demo_mask = nan_arr(coinciding_mask * grid_value)
+        demo_mask = pc_utils.nan_arr(coinciding_mask * grid_value)
         # Use pcolormesh to create the initial empty grid (binary mask)
         im_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -1], cmap='gray')
         c_ax = ax_ani.pcolormesh(X_cropped, Y_cropped, segment_mask, cmap=cmap_me, vmin=10, vmax=100)
@@ -309,57 +277,6 @@ def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_m
         ani.save('animation.gif', writer='imagemagick', fps=100)
 
     pass
-
-
-def test_spectral_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,plot=False ,plot_animation=False,dump_json=False):
-
-    # Extract all the 'wavelength' values into a list
-    wavelengths = [info['wavelength'] for info in bands_dict.values()]
-    wavelengths_array = 1e-3 * np.array(wavelengths)
-    wavelengths_bw_array = np.array([info['wavelength'] for info in bands_dict.values()])
-
-
-    GT_xy_PCI=get_GT_xy_PCI(excel_path)
-    points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
-
-    lon_mat,lat_mat,VenusImage,venusMetadata = get_hypter_spectral_imaginery(data_filename, data_dirname, metadata_filename, metadata_dirname)
-    X_cropped,Y_cropped,hys_img,coinciding_mask = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
-
-    # scatter_plot_with_annotations(points_PCI,ax_roi)
-    binary_mask = np.zeros(hys_img.shape[:-1])
-
-    # this function merge different lane into one PCI (assumption, may not always be valid)
-    # TODO: optimize threshold
-    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
-    xy_points_merge = points_merge_PCI[:, :2]
-
-    # # create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
-    extended_mask, line_string, xy_spline = pc_utils.fill_mask_with_irregular_spline(xy_points_merge, X_cropped,
-                                                                                     Y_cropped, binary_mask,
-                                                                                     combine_mask=False)  # this return mask in the pixels the spline line passes through
-    # to mask out coninciding mask only where there it a PCI data
-    extended_mask = pc_utils.dilate_mask(extended_mask, 5) * coinciding_mask
-
-    # create a segemented image of PCI values based on extendedn mask
-    grid_value = griddata(xy_points_merge, points_merge_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-    segment_mask = grid_value * extended_mask
-    segment_mask[segment_mask <= 0] = np.nan
-
-    x_new, y_new = xy_spline
-
-    # this part create mask based on segmented PCI image
-    mask_below_30, mask_30_to_70, mask_above_85 = pc_utils.divide_array(segment_mask)
-    mask_all_channel_values_30 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_below_30))
-    mask_all_channel_values_85 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_above_85))
-    mask_all_channel_values_30_70 = np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_30_to_70))
-
-
-
-    mask_all_channel = np.repeat(np.expand_dims(extended_mask, axis=2), hys_img.shape[2], axis=2) * hys_img
-    mask_all_channel = nan_arr(mask_all_channel)
-    for ii in range(mask_all_channel.shape[0]):
-        for jj in range(mask_all_channel.shape[1]):
-            spectral_curve=mask_all_channel[ii,jj,:]
 
 
 # Function to save multi-band image parts and their tags
