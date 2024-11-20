@@ -339,6 +339,9 @@ def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,me
         roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
         metadata_filename=metadata_filename, excel_path=excel_path)
 
+    # output a list of ROIs in the hyperspectral image that has a unique PCI and connectivity of at least 3 pixels
+    mask_list = pc_utils.process_labeled_image(hys_img, np.round(segment_mask),dilation_radius=3)
+
     mask_all_channel_values,masks_tags_numerical = create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
     basename = Path(Path(Path(data_filename).stem).stem).stem + '.h5'
 

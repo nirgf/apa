@@ -9,6 +9,7 @@ from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from skimage.morphology import disk, square,skeletonize
 from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing,distance_transform_edt, label,generate_binary_structure
+
 from scipy.spatial import distance
 from collections import defaultdict, deque
 from scipy.ndimage import map_coordinates
@@ -834,7 +835,7 @@ def extract_windows_from_mask(image, mask, window_length=16, window_width=3, ove
     return windows, centers
 
 
-def process_labeled_image(labeled_image, dilation_radius=2):
+def process_labeled_image(hyperspectral_image,labeled_image, dilation_radius=2):
     """
     Process a labeled image to separate connected regions, apply dilation,
     and generate masks per region.
@@ -854,6 +855,7 @@ def process_labeled_image(labeled_image, dilation_radius=2):
     - min_mask_size: int
         The size of the smallest mask.
     """
+    roi_list = []
     mask_list = []
 
     # Define connectivity for connected component labeling
@@ -881,20 +883,27 @@ def process_labeled_image(labeled_image, dilation_radius=2):
             # Dilate the region
             # TODO: add binary_dilation only perpendicular to the mask major axis
             dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
-            (height, width), (center_y,center_x) = get_bounding_box(dilated_mask)
+            min_row, min_col, max_row, max_col = get_bounding_box(dilated_mask)
+            roi = hyperspectral_image[min_row:max_row, min_col:max_col, :]
+            roi_mask = dilated_mask[min_row:max_row, min_col:max_col]
+            # Apply the mask to the hyperspectral ROI
+            masked_roi = roi * roi_mask[:, :, np.newaxis]
+            if np.all(np.isnan(roi)):
+                continue
+            roi_list.append(roi)
 
             # Store mask info
             mask_size = np.sum(dilated_mask)
             mask_list.append({
-                'mask': dilated_mask,
+                'mask': roi,
                 'label': label_id,
-                'size': mask_size
+                'bounding_box': (min_row, min_col, max_row, max_col)
             })
 
     # Find the minimum mask size
-    min_mask_size_id = np.argmin([entry['size'] for entry in mask_list])
+    # min_mask_size_id = np.argmin([entry['bounding_box'] for entry in mask_list])
 
-    return mask_list, min_mask_size_id
+    return mask_list
 
 
 def get_bounding_box(binary_mask):
@@ -920,7 +929,7 @@ def get_bounding_box(binary_mask):
     # Compute minimum rectangle size
     height = max_row - min_row
     width = max_col - min_col
-    return (height, width), (center_y,center_x)
+    return bounding_box
 
 
 
