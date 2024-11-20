@@ -19,7 +19,7 @@ import time
 import functools
 from GetRoadsModule import GetRoadsCoordinates
 from sklearn.decomposition import PCA
-
+import pc_plot_utils as plt_utils
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
 RESET = "\033[0m"
@@ -882,11 +882,11 @@ if __name__ == "__main__":
     # fig, ax = plt.subplots(1, 1, figsize=(12, 6))
 
     # Plot the original mask with the spline overlayed
-    cmap_me = get_lighttraffic_colormap()
+    cmap_me = plt_utils.get_lighttraffic_colormap()
     im = ax.imshow(segment_mask, cmap=cmap_me, origin='lower')
 
     ax.plot(x_new, y_new, 'b-', label='Spline Fit')
-    ax = scatter_plot_with_annotations(points_merge_PCI, ax)
+    ax = plt_utils.scatter_plot_with_annotations(points_merge_PCI, ax)
     ax.set_title("Spline Fit")
     ax.legend()
     cbar = fig.colorbar(im, ticks=[0, 30,70, 100], orientation='vertical')
