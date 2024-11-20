@@ -881,6 +881,7 @@ def process_labeled_image(labeled_image, dilation_radius=2):
             # Dilate the region
             # TODO: add binary_dilation only perpendicular to the mask major axis
             dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
+            (height, width), (center_y,center_x) = get_bounding_box(dilated_mask)
 
             # Store mask info
             mask_size = np.sum(dilated_mask)
@@ -894,6 +895,32 @@ def process_labeled_image(labeled_image, dilation_radius=2):
     min_mask_size_id = np.argmin([entry['size'] for entry in mask_list])
 
     return mask_list, min_mask_size_id
+
+
+def get_bounding_box(binary_mask):
+    """
+    Finds the minimum bounding rectangle (MBR) for a binary mask.
+
+    Parameters:
+    - binary_mask: ndarray
+        Input binary mask.
+
+    Returns:
+    - min_rectangle: tuple
+        A tuple containing the dimensions (height, width) of the minimum rectangle.
+    - bounding_box: tuple
+        A tuple (min_row, min_col, max_row, max_col) defining the bounding box.
+    """
+    # Find properties of the mask
+    props = regionprops(binary_mask.astype(int))
+    bounding_box = props[0].bbox  # (min_row, min_col, max_row, max_col)
+    min_row, min_col, max_row, max_col = bounding_box
+    center_y = (min_row + max_row) // 2
+    center_x = (min_col + max_col) // 2
+    # Compute minimum rectangle size
+    height = max_row - min_row
+    width = max_col - min_col
+    return (height, width), (center_y,center_x)
 
 
 
