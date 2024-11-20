@@ -162,7 +162,7 @@ def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_fi
     # create a segemented image of PCI values based on extendedn mask
     grid_value = griddata(points_PCI[:,:2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
     segment_mask = grid_value * combine_mask_roads
-    segment_mask[segment_mask <= 0] = np.nan
+    segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
 
     x_new, y_new = xy_spline
 
