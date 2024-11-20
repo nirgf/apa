@@ -261,7 +261,7 @@ def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_m
             # Create a mask that gradually reveals more segments
             reveal_mask = np.full(demo_mask.shape, np.nan, dtype=float)
             reveal_mask[:10 * frame, :] = demo_mask[:10 * frame, :]
-            reveal_mask = or_nan(reveal_mask, segment_mask)  # add existing PCI
+            reveal_mask = pc_utils.or_nan(reveal_mask, segment_mask)  # add existing PCI
             c_ax.set_array(reveal_mask.ravel())
             return c_ax,
 
