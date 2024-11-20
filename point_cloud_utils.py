@@ -8,11 +8,13 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from skimage.morphology import disk, square,skeletonize
-from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing
-from scipy.ndimage import distance_transform_edt, label
+from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing,distance_transform_edt, label,generate_binary_structure
 from scipy.spatial import distance
 from collections import defaultdict, deque
 from scipy.ndimage import map_coordinates
+from skimage.measure import regionprops, regionprops_table
+from skimage.morphology import disk
+
 from scipy import stats
 import cv2
 import time
@@ -830,6 +832,68 @@ def extract_windows_from_mask(image, mask, window_length=16, window_width=3, ove
         plt.show()
 
     return windows, centers
+
+
+def process_labeled_image(labeled_image, dilation_radius=2):
+    """
+    Process a labeled image to separate connected regions, apply dilation,
+    and generate masks per region.
+
+    Parameters:
+    - labeled_image: ndarray
+        A 2D array where each pixel's value represents a label.
+    - dilation_radius: int
+        Radius for the dilation operation.
+
+    Returns:
+    - mask_list: list of dict
+        Each entry is a dictionary with keys:
+        - 'mask': The binary mask for the region.
+        - 'label': The label associated with the mask.
+        - 'size': Number of pixels in the mask.
+    - min_mask_size: int
+        The size of the smallest mask.
+    """
+    mask_list = []
+
+    # Define connectivity for connected component labeling
+    structure = generate_binary_structure(2, 2)
+
+    # Iterate through each unique label
+    for label_id in np.unique(labeled_image):
+        if label_id <= 0 or label_id==np.nan:  # Skip background
+            continue
+
+        # Create a binary mask for the current label
+        label_mask = (labeled_image == label_id).astype(np.uint8)
+        # Connect nearby pixels with binary_dilation
+        label_mask = binary_dilation(label_mask, structure=disk(dilation_radius))
+        # Separate connected regions
+        connected_components, num_features = label(label_mask, structure=structure)
+
+
+        # Process each connected region
+        for region_id in range(1, num_features + 1):
+            # Create a binary mask for the current region
+            region_mask = (connected_components == region_id)
+
+
+            # Dilate the region
+            # TODO: add binary_dilation only perpendicular to the mask major axis
+            dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
+
+            # Store mask info
+            mask_size = np.sum(dilated_mask)
+            mask_list.append({
+                'mask': dilated_mask,
+                'label': label_id,
+                'size': mask_size
+            })
+
+    # Find the minimum mask size
+    min_mask_size_id = np.argmin([entry['size'] for entry in mask_list])
+
+    return mask_list, min_mask_size_id
 
 
 
