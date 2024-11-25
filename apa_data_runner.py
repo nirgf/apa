@@ -20,6 +20,42 @@ matplotlib.use('TkAgg')
 cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
 
+
+#%% Generate Database For NN
+def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path, crop_size = 256):
+    import PrepareDataForNN_module as pp
+    X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask =\
+        process_geo_data(
+            roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
+            metadata_filename=metadata_filename, excel_path=excel_path)
+    road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
+    # Gets the roads in general
+    hys_roads = np.repeat(road_hys_filter, 12, -1)*hys_img
+    NN_inputs = pp.crop_image_to_segments(hys_roads, crop_size=crop_size, overlap=0.4, image_dim=12)
+    NN_inputs[np.isnan(NN_inputs)] = 0
+    
+    # Gets only the labeled roads
+    labeled_road_mask = np.ones(np.shape(coinciding_mask))
+    labeled_road_mask[np.isnan(segment_mask)] = 0
+    labeled_road_mask = np.reshape(labeled_road_mask*coinciding_mask, list(np.shape(labeled_road_mask)) + [1])
+    hys_labeled_roads = np.repeat(labeled_road_mask, 12, -1)*hys_img
+    NN_labeled_inputs = pp.crop_image_to_segments(hys_labeled_roads, crop_size=crop_size, overlap=0.4, image_dim=12)
+    NN_labeled_inputs[np.isnan(NN_labeled_inputs)] = 0
+    true_labels_full_image = np.reshape(segment_mask, list(np.shape(segment_mask)) + [1]) * labeled_road_mask
+    true_labels_full_image[np.isnan(true_labels_full_image)] = 0
+    true_labels = pp.crop_image_to_segments(true_labels_full_image, crop_size=crop_size, overlap=0.4, image_dim=1)
+    
+    # Remove frames with zeros only
+    non_zero_idx = np.argwhere(np.sum(np.sum(np.sum(true_labels, -1), -1), -1) > 0)
+    fin_NN_inputs = NN_inputs[non_zero_idx[:, 0], :, :, :]
+    fin_true_labels = true_labels[non_zero_idx[:, 0], :, :, :]
+    fin_NN_labeled_inputs = NN_labeled_inputs[non_zero_idx[:, 0], :, :, :]
+    
+    ### Save the data ###
+    pp.save_cropped_segments_to_h5(fin_NN_inputs, 'All_RoadVenus.h5')
+    pp.save_cropped_segments_to_h5(fin_true_labels, 'PCI_labels.h5')
+    pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, 'Labeld_RoadsVenus.h5')
+
 #%% Update Git Rules so the push will not get stuck
 # import UpdateGitIgnore
 # UpdateGitIgnore.main()
@@ -367,7 +403,7 @@ def crop_runner_main(roi,data_dirname,data_filename,metadata_dirname,metadata_fi
 if __name__ == "__main__":
     # change only these paths or the ROI
     # %% Get venus data
-    parent_path = '/Users/nircko/DATA/apa'
+    parent_path = ''
     data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
     data_filename = 'VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.DBL.TIF'
     metadata_filename = 'M02_metadata.csv'
@@ -377,13 +413,22 @@ if __name__ == "__main__":
 
     roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
+    
+    ### Get data and prepare it for NN ###
+    # This also saves the data as .h5 files
+    create_database_from_VENUS(roi, data_dirname, data_filename,\
+                               metadata_dirname, metadata_filename, excel_path, crop_size=32)
 
-    # masks_tags_bounds = (30,30,60,60, 80, 85)  # PCI bounds tags of each segements in format
+    
+    # These metrics oare based on :
+    masks_tags_bounds = (30,30,60,60, 80, 85)  # PCI bounds tags of each segements in format
     # (segement1_upperbound,segement2_lowerbound,segement2_upperbound,segement3_lowerbound,segement3_upperbound.....,segement_N_lowerbound)
     # create_hdf5_segemets_tags(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
     #                       metadata_filename=metadata_filename,excel_path=excel_path,masks_tags_bounds=masks_tags_bounds)
-
-    crop_runner_main(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
-                          metadata_filename=metadata_filename,excel_path=excel_path)
-
+    ### --- ###
+    
+    ### Spectral Analysis ###
+    # crop_runner_main(roi=roi,data_dirname=data_dirname,data_filename=data_filename, metadata_dirname=metadata_dirname,
+    #                       metadata_filename=metadata_filename,excel_path=excel_path)
+    ### --- ###
 
