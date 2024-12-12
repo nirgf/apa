@@ -26,8 +26,7 @@ def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_dirname,m
     import PrepareDataForNN_module as pp
     X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask =\
         process_geo_data(
-            roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
-            metadata_filename=metadata_filename, excel_path=excel_path)
+            roi=roi, data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
     # Gets the roads in general
     hys_roads = np.repeat(road_hys_filter, 12, -1)*hys_img
@@ -104,7 +103,7 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
 
     return (lon_vec,lat_vec,pci_vec)
 
-def get_hypter_spectral_imaginery(data_filename,data_dirname,metadata_filename,metadata_dirname):
+def get_hypter_spectral_imaginery(data_filename,data_dirname):
     bands = range(1, 13)
     VenusImage_ls = []
     for b in bands:
@@ -407,8 +406,7 @@ def read_from_hdf5(file_name):
 
 def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path,masks_tags_bounds):
     X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_geo_data(
-        roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
-        metadata_filename=metadata_filename, excel_path=excel_path)
+        roi=roi, data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
 
     # output a list of ROIs in the hyperspectral image that has a unique PCI and connectivity of at least 3 pixels
     mask_list = pc_utils.process_labeled_image(hys_img, np.round(segment_mask),dilation_radius=3)
@@ -422,8 +420,7 @@ def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,me
 
 def crop_runner_main(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
     X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_geo_data(
-        roi=roi, data_dirname=data_dirname, data_filename=data_filename, metadata_dirname=metadata_dirname,
-        metadata_filename=metadata_filename, excel_path=excel_path)
+        roi=roi, data_dirname=data_dirname, data_filename=data_filename, excel_path=excel_path)
 
     unique_values, counts = pc_utils.analyze_and_plot_grouped_histogram(segment_mask,group_range=5,min_value=1)
     masks_tags_bounds = (30, 50, 70, 85)  # bounds tags of each segements in format
@@ -439,14 +436,21 @@ if __name__ == "__main__":
     # change only these paths or the ROI
     # %% Get venus data
     parent_path = ''
-    data_dirname = os.path.join(parent_path, 'venus data/Detroit_20230710/')
+    # data_dirname = os.path.join(parent_path, 'venus data/Detroit_20230710/')
+    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     metadata_filename = 'M02_metadata.csv'
     metadata_dirname = os.path.join(parent_path, 'venus data/')
 
-    from Detroit import ReadDetroitDataModule_dev
-    PCI_df, roi = ReadDetroitDataModule_dev.parse_kml(kml_file = 'Detroit/Pavement_Condition.kml')
-    excel_path = 'Detroit/Pavement_Condition.csv'
+    convert_KML2CSV=False
+    if convert_KML2CSV:
+        from Detroit import ReadDetroitDataModule_dev
+        kml_fullpath='/Users/nircko/DATA/apa/Detroit/Pavement_Condition.kml'
+        PCI_df, roi = ReadDetroitDataModule_dev.parse_kml(kml_file = kml_fullpath)
+        excel_path = 'Detroit/Pavement_Condition.csv'
+    else:
+        excel_path='/Users/nircko/DATA/apa/Detroit/Pavement_Condition.csv'
+
 
     # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
