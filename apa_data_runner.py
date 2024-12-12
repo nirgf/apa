@@ -62,11 +62,13 @@ def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_dirname,m
 
 def get_GT_xy_PCI(xls_path, isLatLon = False):
     #%% get NA data
-    df = pd.read_excel(xls_path)
-    pci_vec = df.PCI
-    x_vec = df.X
-    y_vec = df.Y
-    dates = df.S_Date
+    xls_suffix=Path(xls_path).suffix
+    if xls_suffix == '.csv':
+        df = pd.read_csv(xls_path)
+    elif xls_suffix == '.xls':
+        df = pd.read_excel(xls_path)
+    else:
+        raise ValueError(f"Unsupported file extension: '{xls_suffix}'. Supported extensions are: {['.csv','.xls']}")
 
     # calculate lat/lon vecs
     if not isLatLon:
