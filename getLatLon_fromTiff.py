@@ -16,7 +16,7 @@ def extents(f):
   return [f[0] - delta/2, f[-1] + delta/2]
 
 
-def convert_raster_to_geocoords(file_path):
+def convert_raster_to_geocoords(file_path, zone_number = 36, zone_letter='U'):
     """
     Reads a raster file, extracts pixel data, converts pixel coordinates to geographic coordinates 
     (latitude and longitude), and returns the lat/lon matrix.
@@ -48,7 +48,7 @@ def convert_raster_to_geocoords(file_path):
     ys = np.array(ys.reshape(cols.shape))
     
     # Convert UTM coordinates to latitude and longitude
-    lat_mat, lon_mat = CovertITM2LatLon.UTM2WGS(xs, ys)
+    lat_mat, lon_mat = CovertITM2LatLon.UTM2WGS(xs, ys, zone_number, zone_letter)
     
     # Reshape latitude and longitude matrices to match the shape of the input data
     lat_mat = np.array(lat_mat).reshape(list(np.shape(xs)) + [1])

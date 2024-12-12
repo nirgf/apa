@@ -413,7 +413,7 @@ if __name__ == "__main__":
 
     roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
-    roi = ((-82.4234284303285, -84.1492545038306), (43.1628843775887, 41.724177070249))  # Detroit
+    # roi = ((-82.4234284303285, -84.1492545038306), (43.1628843775887, 41.724177070249))  # Detroit
     
     ### Get data and prepare it for NN ###
     # This also saves the data as .h5 files
