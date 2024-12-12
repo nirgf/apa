@@ -70,6 +70,23 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     else:
         raise ValueError(f"Unsupported file extension: '{xls_suffix}'. Supported extensions are: {['.csv','.xls']}")
 
+    df.columns = df.columns.str.lower() # make the columns name case-insensitive
+
+    pci_vec = df.pci
+
+    # verify if latitude should be x and not longitude
+    if 'x' in df.columns:
+        x_vec = df.x
+        y_vec = df.y
+    elif 'latitude' in df.columns:
+        x_vec = df.latitude
+        y_vec = df.longitude
+    else:
+        raise ValueError("The DataFrame must contain a column named 'x' or 'latitude'.")
+
+
+    dates = df.s_date # add date
+
     # calculate lat/lon vecs
     if not isLatLon:
         lat_vec, lon_vec = CovertITM2LatLon.ITM2WGS(x_vec, y_vec)
