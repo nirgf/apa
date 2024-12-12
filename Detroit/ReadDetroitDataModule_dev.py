@@ -4,6 +4,7 @@ import contextily as ctx
 from xml.etree import ElementTree as ET
 import tqdm
 import numpy as np
+import os
 from datetime import datetime
 
 ## Make plots interactive
