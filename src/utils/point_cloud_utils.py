@@ -20,9 +20,9 @@ from scipy import stats
 import cv2
 import time
 import functools
-from GetRoadsModule import GetRoadsCoordinates
+from src.geo_reference import GetRoadsCoordinates
 from sklearn.decomposition import PCA
-import pc_plot_utils as plt_utils
+import src.utils.pc_plot_utils as plt_utils
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
 RESET = "\033[0m"

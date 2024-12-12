@@ -9,6 +9,7 @@ import numpy as np
 import rasterio
 from rasterio.transform import rowcol, xy
 import matplotlib.pyplot as plt
+from src.geo_reference import CovertITM2LatLon
 
 
 def extents(f):

@@ -2,12 +2,10 @@ import os.path
 import json
 import numpy as np
 from pathlib import Path
-from PIL.ImageColor import colormap
-from src.CONST import bands_dict
-import src.geo_reference.CovertITM2LatLon
+import src.utils.io_utils
+from src.utils.apa_tester_utils import get_GT_xy_PCI,get_PCI_ROI,get_mask_from_roads_gdf,get_hypter_spectral_imaginery,create_proximity_mask
+import src.utils.PrepareDataForNN_module as pp
 from src.utils import ReadDetroitDataModule
-import pandas as pd
-import src.utils.ImportVenusModule
 import matplotlib.pyplot as plt
 import src.utils.point_cloud_utils as pc_utils
 import src.utils.pc_plot_utils as plt_utils
@@ -15,17 +13,21 @@ from scipy.interpolate import griddata
 ## Make plots interactive
 import matplotlib
 import h5py
+
+from src.utils.io_utils import read_yaml_config
+
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
 
 cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
 
+REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
 
 #%% Generate Database For NN
-def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path, crop_size = 256):
-    import PrepareDataForNN_module as pp
-    X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask =\
+def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_filename, excel_path, crop_size = 256):
+    X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
         process_geo_data(
             roi=roi, data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
@@ -106,8 +108,7 @@ def process_geo_data(roi,data_dirname,data_filename,excel_path):
 
     lon_mat,lat_mat,VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
     X_cropped,Y_cropped,hys_img = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
-
-    npz_filename='data/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
+    npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
     coinciding_mask = get_mask_from_roads_gdf(npz_filename, {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
 
 
@@ -178,34 +179,6 @@ def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
                     print(f"Created empty dataset '{dataset_name}' with a tag.")
 
 
-def read_from_hdf5(file_name):
-    arrays = []
-    tags = []
-    with h5py.File(file_name, 'r') as f:
-        for key in f.keys():  # Iterate through dataset names
-            print(f'key:{key}')
-            arr = f[key][:]
-            arrays.append(arr)
-            tag = f.attrs[f'tag_{key.split("_")[1]}']  # Extract the tag by splitting the dataset name
-            tags.append(tag)
-    # Print the shapes and tags of the read data
-    for i, (arr, tag) in enumerate(zip(arrays, tags)):
-        print(f"Array {i}: shape={arr.shape}, tag={tag}")
-    return arrays, tags
-
-
-def crop_runner_main(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
-    X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new, coinciding_mask, grid_value, segment_mask = process_geo_data(
-        roi=roi, data_dirname=data_dirname, data_filename=data_filename, excel_path=excel_path)
-
-    unique_values, counts = pc_utils.analyze_and_plot_grouped_histogram(segment_mask,group_range=5,min_value=1)
-    masks_tags_bounds = (30, 50, 70, 85)  # bounds tags of each segements in format
-    # (segement1_upperbound,segement2_lowerbound,segement2_upperbound,segement3_lowerbound,segement3_upperbound.....,segement_N_lowerbound)
-    mask_all_channel_values, masks_tags_numerical = create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
-    stats_from_mask(mask_all_channel_values, X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new,
-                    coinciding_mask, grid_value, segment_mask, plot=True, plot_animation=False, dump_json=False)
-
-    pass
 
 
 if __name__ == "__main__":
@@ -215,17 +188,17 @@ if __name__ == "__main__":
     # data_dirname = os.path.join(parent_path, 'venus data/Detroit_20230710/')
     data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
-    metadata_filename = 'M02_metadata.csv'
-    metadata_dirname = os.path.join(parent_path, 'venus data/')
+    metadata_filename = 'data/dummy_metadata.json'
 
     convert_KML2CSV=False
     if convert_KML2CSV:
         kml_fullpath='/Users/nircko/DATA/apa/Detroit_20230710/Detroit_metadata/Pavement_Condition.kml'
-        PCI_df, roi = ReadDetroitDataModule_dev.parse_kml(kml_file = kml_fullpath)
-        excel_path = 'Detroit/Pavement_Condition.csv'
+        PCI_df, roi = ReadDetroitDataModule.parse_kml(kml_file = kml_fullpath)
+        excel_path = 'data/Detroit/Pavement_Condition.csv'
     else:
-        excel_path='/Users/nircko/DATA/apa/Detroit_20230710/Detroit_metadata/Pavement_Condition.csv'
+        excel_path=os.path.join(REPO_ROOT,'data/Detroit/Pavement_Condition.csv')
 
+    config_path = '/Users/nircko/GIT/apa/configs/apa_config.yaml'
     # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
     roi = ((-83.14294, -83.00007), (42.34429, 42.39170)) # Detroit test data
@@ -233,8 +206,8 @@ if __name__ == "__main__":
     
     ### Get data and prepare it for NN ###
     # This also saves the data as .h5 files
-    create_database_from_VENUS(roi, data_dirname, data_filename,\
-                               metadata_dirname, metadata_filename, excel_path, crop_size=32)
+    config=read_yaml_config(config_path)
+    create_database_from_VENUS(roi, data_dirname, data_filename,metadata_filename, excel_path, crop_size=32)
 
 
 
