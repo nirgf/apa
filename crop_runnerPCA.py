@@ -10,8 +10,9 @@ import CovertITM2LatLon
 import pandas as pd
 import ImportVenusModule
 import matplotlib.pyplot as plt
-from point_cloud_utils import get_lighttraffic_colormap, fill_mask_with_spline, merge_close_points, \
-    scatter_plot_with_annotations, fit_spline_pc, fill_mask_with_irregular_spline, dilate_mask, \
+from pc_plot_utils import get_lighttraffic_colormap,scatter_plot_with_annotations
+from point_cloud_utils import fill_mask_with_spline, merge_close_points, \
+     fit_spline_pc, fill_mask_with_irregular_spline, dilate_mask, \
     fill_mask_with_line_point_values, create_masks, apply_masks_and_average, get_stats_from_segment_spectral,laplacian_of_gaussian,get_pixels_intersect_with_roads,normalize_hypersepctral_bands
 from scipy.interpolate import splprep, splev, griddata
 ## Make plots interactive
