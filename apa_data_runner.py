@@ -211,10 +211,8 @@ def process_geo_data(roi,data_dirname,data_filename,excel_path):
     points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
     xy_points_merge = points_merge_PCI[:, :2]
 
-    # # create a spline fit trajectory from point cloud using GreedyNN and this create a mask of of it (can be extended with existing mask)
-    extended_mask, line_string, xy_spline = pc_utils.fill_mask_with_irregular_spline(xy_points_merge, X_cropped,
-                                                                                     Y_cropped, binary_mask,
-                                                                                     combine_mask=False)  # this return mask in the pixels the spline line passes through
+    # create a mask based on proximity to point cloud data point
+    extended_mask = create_proximity_mask(xy_points_merge,X_cropped,Y_cropped)
     # to mask out coninciding mask only where there it a PCI data
     # TODO: optimzie radius and size of sturcture element in the morphological operators
     combine_mask_roads = pc_utils.morphological_operator(extended_mask,'dilation',
@@ -228,9 +226,8 @@ def process_geo_data(roi,data_dirname,data_filename,excel_path):
     segment_mask = grid_value * combine_mask_roads
     segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
 
-    x_new, y_new = xy_spline
 
-    return X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask
+    return X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask
 
 def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
     # this part create mask based on segmented PCI image
