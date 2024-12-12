@@ -3,15 +3,12 @@ import json
 import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
-from CONST import bands_dict
-import GeoCovertITM2LatLon
+from src.CONST import bands_dict
 import pandas as pd
-import ImportVenusModule
-import matplotlib.pyplot as plt
-import point_cloud_utils as pc_utils
-import pc_plot_utils as plt_utils
-from scipy.interpolate import splprep, splev, griddata
-from scipy.spatial import cKDTree, KDTree
+from src.utils import ImportVenusModule,getLatLon_fromTiff
+from src.geo_reference import CovertITM2LatLon
+import src.utils.point_cloud_utils as pc_utils
+from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
 ## Make plots interactive
 import matplotlib
@@ -78,7 +75,7 @@ def get_hypter_spectral_imaginery(data_filename,data_dirname):
 
 
     #%% Get lat/lon directly from VENUS data - Get kiryatAta only
-    import getLatLon_fromTiff
+
     x = getLatLon_fromTiff.convert_raster_to_geocoords(os.path.join(data_dirname,data_filename), zone_number=17, zone_letter='T')
     # unpack lat/lon
     lon_mat = x[:, :, 0]
