@@ -117,20 +117,15 @@ def get_hypter_spectral_imaginery(data_filename,data_dirname):
     VenusImage = np.asarray(VenusImage_ls)
     VenusImage = np.transpose(VenusImage, axes=(1, 2, 0))
 
-    venusMetadata = ImportVenusModule.getVenusMetaData(metadata_dirname, metadata_filename)
-
-    maxLat, minLon = CovertITM2LatLon.UTM2WGS(venusMetadata.MinX[0], venusMetadata.MinY[0])
-    minLat, maxLon = CovertITM2LatLon.UTM2WGS(venusMetadata.MaxX[0], venusMetadata.MaxY[0])
-
 
     #%% Get lat/lon directly from VENUS data - Get kiryatAta only
     import getLatLon_fromTiff
-    x = getLatLon_fromTiff.convert_raster_to_geocoords(data_dirname + data_filename, zone_number=17, zone_letter='T')
+    x = getLatLon_fromTiff.convert_raster_to_geocoords(os.path.join(data_dirname,data_filename), zone_number=17, zone_letter='T')
     # unpack lat/lon
     lon_mat = x[:, :, 0]
     lat_mat = x[:, :, 1]
 
-    return lon_mat,lat_mat,VenusImage,venusMetadata
+    return lon_mat,lat_mat,VenusImage
 
 def get_PCI_ROI(roi,xy_pci):
     # # example ROI format:
@@ -193,22 +188,19 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
     # Apply the mask to the image
     Z_cropped = kiryatAtaImg
 
-    #%% Get only pixels that intersect with roads
-    lat_range = (ymin_cut, ymax_cut)
-    lon_range = (xmin_cut, xmax_cut)
-    coinciding_mask=pc_utils.get_pixels_intersect_with_roads(lon_mat_KiryatAta,lat_mat_KiryatAta,lon_range,lat_range) # assume prefect fit and registration is not needed
-    rowAndColIdx = np.argwhere(coinciding_mask)
-
-    return X_cropped,Y_cropped,hys_img,coinciding_mask
+    return X_cropped,Y_cropped,hys_img
 
 
-def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
+def process_geo_data(roi,data_dirname,data_filename,excel_path):
     GT_xy_PCI=get_GT_xy_PCI(excel_path, isLatLon=True)
 
     points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
 
-    lon_mat,lat_mat,VenusImage,venusMetadata = get_hypter_spectral_imaginery(data_filename, data_dirname, metadata_filename, metadata_dirname)
-    X_cropped,Y_cropped,hys_img,coinciding_mask = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
+    lon_mat,lat_mat,VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
+    X_cropped,Y_cropped,hys_img = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
+
+    coinciding_mask = get_mask_from_roads_gdf('mask_from_roads_gdf.npz', {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
+
 
     # scatter_plot_with_annotations(points_PCI,ax_roi)
     binary_mask = np.zeros(hys_img.shape[:-1])
