@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import point_cloud_utils as pc_utils
 import pc_plot_utils as plt_utils
 from scipy.interpolate import splprep, splev, griddata
+from scipy.spatial import cKDTree, KDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
 ## Make plots interactive
 import matplotlib
@@ -249,6 +250,20 @@ def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
 
     return mask_all_channel_values,masks_tags_numerical
 
+
+def create_proximity_mask(xy_points_merge,X_Grid,Y_Grid,threshold=10e-5,*arg):
+    # Build a KD-tree for the features
+    tree = cKDTree(xy_points_merge)
+    # Flatten grid points for querying
+    grid_points = np.vstack((X_Grid.ravel(), Y_Grid.ravel())).T
+
+    # Query the nearest distance to a feature for each grid point
+    distances, _ = tree.query(grid_points)
+
+    # Create a binary mask where distance <= threshold is 1, else 0
+    KDTree_mask = (distances <= threshold).astype(int).reshape(X_Grid.shape)
+
+    return KDTree_mask
 
 def get_mask_from_roads_gdf(npz_filename,data=None):
     if os.path.exists(npz_filename):
