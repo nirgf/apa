@@ -60,7 +60,7 @@ def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_dirname,m
 # import UpdateGitIgnore
 # UpdateGitIgnore.main()
 
-def get_GT_xy_PCI(xls_path):
+def get_GT_xy_PCI(xls_path, isLatLon = False):
     #%% get NA data
     df = pd.read_excel(xls_path)
     pci_vec = df.PCI
@@ -69,10 +69,14 @@ def get_GT_xy_PCI(xls_path):
     dates = df.S_Date
 
     # calculate lat/lon vecs
-    lat_vec, lon_vec = CovertITM2LatLon.ITM2WGS(x_vec, y_vec)
-    lat_vec = np.reshape(lat_vec, [len(lat_vec), 1])
-    lon_vec = np.reshape(lon_vec, [len(lon_vec), 1])
-    NA_points_ls = np.append(lat_vec, lon_vec, 1)
+    if not isLatLon:
+        lat_vec, lon_vec = CovertITM2LatLon.ITM2WGS(x_vec, y_vec)
+        lat_vec = np.reshape(lat_vec, [len(lat_vec), 1])
+        lon_vec = np.reshape(lon_vec, [len(lon_vec), 1])
+        NA_points_ls = np.append(lat_vec, lon_vec, 1)
+    else:
+        lat_vec = x_vec
+        lon_vec = y_vec
     # # Update map file
     # CovertITM2LatLon.createFoliumMap(NA_points_ls, np.mean(NA_points_ls, 0), labels=pci_vec)
     #
@@ -82,7 +86,18 @@ def get_GT_xy_PCI(xls_path):
     return (lon_vec,lat_vec,pci_vec)
 
 def get_hypter_spectral_imaginery(data_filename,data_dirname,metadata_filename,metadata_dirname):
-    VenusImage = ImportVenusModule.getVenusData(data_dirname, data_filename)
+    bands = range(1, 13)
+    VenusImage_ls = []
+    for b in bands:
+        data_filename = data_filename.split('.')
+        num2replace = len(str(b-1))
+        data_filename[0] = data_filename[0][:-num2replace] + str(b)
+        data_filename = data_filename[0] + '.' + data_filename[1]
+        VenusImage_band = ImportVenusModule.getVenusData(data_dirname, data_filename)
+        VenusImage_ls += [VenusImage_band]
+    VenusImage = np.asarray(VenusImage_ls)
+    VenusImage = np.transpose(VenusImage, axes=(1, 2, 0))
+
     venusMetadata = ImportVenusModule.getVenusMetaData(metadata_dirname, metadata_filename)
 
     maxLat, minLon = CovertITM2LatLon.UTM2WGS(venusMetadata.MinX[0], venusMetadata.MinY[0])
@@ -91,7 +106,7 @@ def get_hypter_spectral_imaginery(data_filename,data_dirname,metadata_filename,m
 
     #%% Get lat/lon directly from VENUS data - Get kiryatAta only
     import getLatLon_fromTiff
-    x = getLatLon_fromTiff.convert_raster_to_geocoords(data_dirname + data_filename)
+    x = getLatLon_fromTiff.convert_raster_to_geocoords(data_dirname + data_filename, zone_number=17, zone_letter='T')
     # unpack lat/lon
     lon_mat = x[:, :, 0]
     lat_mat = x[:, :, 1]
@@ -169,7 +184,8 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
 
 
 def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_filename, excel_path):
-    GT_xy_PCI=get_GT_xy_PCI(excel_path)
+    GT_xy_PCI=get_GT_xy_PCI(excel_path, isLatLon=True)
+
     points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
 
     lon_mat,lat_mat,VenusImage,venusMetadata = get_hypter_spectral_imaginery(data_filename, data_dirname, metadata_filename, metadata_dirname)
@@ -404,15 +420,20 @@ if __name__ == "__main__":
     # change only these paths or the ROI
     # %% Get venus data
     parent_path = ''
-    data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
-    data_filename = 'VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.DBL.TIF'
+    data_dirname = os.path.join(parent_path, 'venus data/Detroit_20230710/')
+    data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     metadata_filename = 'M02_metadata.csv'
     metadata_dirname = os.path.join(parent_path, 'venus data/')
 
-    excel_path = 'seker_nezakim.xls'
+    from Detroit import ReadDetroitDataModule_dev
+    PCI_df, roi = ReadDetroitDataModule_dev.parse_kml(kml_file = 'Detroit/Pavement_Condition.kml')
+    excel_path = 'Detroit/Pavement_Condition.csv'
 
-    roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
+    # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
     # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
+    roi = ((-83.14294, -83.00007), (42.34429, 42.39170)) # Detroit test data
+
+    # roi = ((-84.1492545038306, -82.4234284303285), (41.724177070249, 43.1628843775887))  # Detroit real data
     
     ### Get data and prepare it for NN ###
     # This also saves the data as .h5 files
