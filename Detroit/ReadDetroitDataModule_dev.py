@@ -4,6 +4,7 @@ import contextily as ctx
 from xml.etree import ElementTree as ET
 import tqdm
 import numpy as np
+from datetime import datetime
 
 ## Make plots interactive
 import matplotlib
@@ -48,7 +49,7 @@ def parse_kml(kml_file = "Pavement_Condition.kml", save_csv = True):
     # Get Only Asphalt Roads. use only 2023 data
     filtered_df = df[(df['evalyear'] == '2023') & (df['surface'] == 'Asphalt')]
 
-    fin_df = filtered_df[['cond', 'coordinates']]
+    fin_df = filtered_df[['cond', 'coordinates','evalyear']]
     point_df = split_coordinates_to_points(fin_df)
     if save_csv:
         point_df.to_csv("Detroit/Pavement_Condition.csv", index=False)
@@ -115,7 +116,8 @@ def split_coordinates_to_points(df):
             elif condition_str == 'Good' : condition = 3
 
             lon, lat = map(float, pair.split(","))
-            expanded_rows.append({"condition": condition, "latitude": lat, "longitude": lon})
+            evalyear = pd.Timestamp(row['evalyear'])
+            expanded_rows.append({"PCI": condition, "latitude": lat, "longitude": lon,'S_Date':evalyear})
 
     # Create a new DataFrame
     expanded_df = pd.DataFrame(expanded_rows)
