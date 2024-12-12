@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import point_cloud_utils as pc_utils
 import pc_plot_utils as plt_utils
 from scipy.interpolate import splprep, splev, griddata
+from scipy.sparse import csr_matrix, save_npz, load_npz
 ## Make plots interactive
 import matplotlib
 import h5py
@@ -255,6 +256,33 @@ def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
     assert(len(mask_all_channel_values)==len(masks_tags_numerical))
 
     return mask_all_channel_values,masks_tags_numerical
+
+
+def get_mask_from_roads_gdf(npz_filename,data=None):
+    if os.path.exists(npz_filename):
+        print(f"File '{npz_filename}' exists. Loading data...")
+        return load_npz(npz_filename).toarray()
+
+    else:
+        if data is None:
+            raise ValueError("No data provided to save when the file does not exist.")
+        print(f"File '{npz_filename}' does not exist. Saving data...")
+        # %% Get only pixels that intersect with roads
+
+        roi = data["roi"]
+        lon_mat=data["Y_cropped"]
+        lat_mat=data["X_cropped"]
+        xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi[0][0], roi[0][1], roi[1][0], roi[1][1]
+        lat_range = (ymin_cut, ymax_cut)
+        lon_range = (xmin_cut, xmax_cut)
+        coinciding_mask = pc_utils.get_pixels_intersect_with_roads(lon_mat, lat_mat, lon_range,
+                                                                   lat_range)  # assume prefect fit and registration is not needed
+        rowAndColIdx = np.argwhere(coinciding_mask)
+        save_npz(npz_filename, csr_matrix(coinciding_mask))
+        return coinciding_mask
+
+
+
 
 
 def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask,plot=False ,plot_animation=False,dump_json=False):
