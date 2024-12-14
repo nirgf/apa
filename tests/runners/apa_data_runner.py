@@ -14,7 +14,7 @@ from scipy.interpolate import griddata
 import matplotlib
 import h5py
 
-from src.utils.io_utils import read_yaml_config
+import src.utils.io_utils as io_utils
 
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
@@ -25,14 +25,22 @@ plt.ion()
 REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 
+
+
 #%% Generate Database For NN
-def create_database_from_VENUS(roi,data_dirname,data_filename,metadata_filename, excel_path, crop_size = 256):
+def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path):
+
+    ### Get data and prepare it for NN ###
+    # This also saves the data as .h5 files
+    config = io_utils.read_yaml_config(config_path)
+    config_merge=io_utils.fill_with_defaults(config['config'])
+    io_utils.pretty_print_config(config_merge,config)
+    config=config_merge
     X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
-        process_geo_data(
-            roi=roi, data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
+        process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
     # Gets the roads in general
-
+    crop_size=config['preprocessing']['augmentations']['crop_size']
     hys_roads = np.repeat(road_hys_filter, 12, -1)*hys_img
     NN_inputs = pp.crop_image_to_segments(hys_roads, crop_size=crop_size, overlap=0.4, image_dim=12)
     NN_inputs[np.isnan(NN_inputs)] = 0
@@ -199,15 +207,7 @@ if __name__ == "__main__":
         excel_path=os.path.join(REPO_ROOT,'data/Detroit/Pavement_Condition.csv')
 
     config_path = '/Users/nircko/GIT/apa/configs/apa_config.yaml'
-    # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
-    # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
-    roi = ((-83.14294, -83.00007), (42.34429, 42.39170)) # Detroit test data
-    # roi = ((-84.1492545038306, -82.4234284303285), (41.724177070249, 43.1628843775887))  # Detroit real data
-    
-    ### Get data and prepare it for NN ###
-    # This also saves the data as .h5 files
-    config=read_yaml_config(config_path)
-    create_database_from_VENUS(roi, data_dirname, data_filename,metadata_filename, excel_path, crop_size=32)
+    create_database_from_VENUS(config_path,data_dirname, data_filename,metadata_filename, excel_path)
 
 
 
