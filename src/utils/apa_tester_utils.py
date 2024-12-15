@@ -264,3 +264,13 @@ def create_segments_mask(hys_img, segment_mask, masks_tags_bounds):
 
     return mask_all_channel_values, masks_tags_numerical
 
+
+def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3]):
+    stat_from_segments = [
+        {"pci_value": i,
+         "statistics": pc_utils.get_stats_from_segment_spectral(
+             np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask == i))
+         )}
+        for i in masks_tags_numerical
+    ]
+    return stat_from_segments
