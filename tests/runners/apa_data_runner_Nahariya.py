@@ -1,14 +1,17 @@
 import os.path
-import json
-import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
 from src.CONST import bands_dict
-from src.utils import ImportVenusModule
-import src.geo_reference.CovertITM2LatLon
-import src.utils.ReadDetroitDataModule
+from src.utils import getLatLon_fromTiff
+from src.geo_reference import CovertITM2LatLon
 import pandas as pd
-import src.utils.ImportVenusModule
+from src.utils import ImportVenusModule
+import os.path
+import json
+import numpy as np
+from pathlib import Path
+import src.utils.io_utils
+import src.utils.apa_tester_utils as apa_utils
 import matplotlib.pyplot as plt
 import src.utils.point_cloud_utils as pc_utils
 import src.utils.pc_plot_utils as plt_utils
@@ -16,10 +19,12 @@ from scipy.interpolate import griddata
 ## Make plots interactive
 import matplotlib
 import h5py
+## Make plots interactive
+import matplotlib
+
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
-# matplotlib.use('Qt5Agg')
-matplotlib.use('TkAgg')
+
 
 cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
@@ -94,7 +99,6 @@ def get_hypter_spectral_imaginery(data_filename,data_dirname,metadata_filename,m
 
 
     #%% Get lat/lon directly from VENUS data - Get kiryatAta only
-    import getLatLon_fromTiff
     x = getLatLon_fromTiff.convert_raster_to_geocoords(data_dirname + data_filename)
     # unpack lat/lon
     lon_mat = x[:, :, 0]
@@ -208,23 +212,6 @@ def process_geo_data(roi,data_dirname,data_filename,metadata_dirname,metadata_fi
 
     return X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask
 
-def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
-    # this part create mask based on segmented PCI image
-    assert(len(masks_tags_bounds)%2==0)
-    masks_segments = pc_utils.divide_array(segment_mask, *masks_tags_bounds)
-    masks_tags_numerical = (np.mean([0, masks_tags_bounds[0]]),) + tuple(
-        (np.mean([masks_tags_bounds[ii + 1], masks_tags_bounds[ii]])) for ii in
-        range(1, len(masks_tags_bounds) - 2, 2)) + (np.mean([masks_tags_bounds[-1], 100]),) # numerical value of tags as a mean of lower bound and upper bound of each segement, this will be used as tag value for each segement
-
-
-    print(f'# of masks segments: {len(masks_segments)}')
-    mask_all_channel_values=[]
-    for ms in masks_segments:
-        mask_all_channel_values.append(np.asarray(pc_utils.apply_masks_and_average(hys_img, ms)))
-
-    assert(len(mask_all_channel_values)==len(masks_tags_numerical))
-
-    return mask_all_channel_values,masks_tags_numerical
 
 
 def stats_from_mask(mask_all_channel_values,X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_new,coinciding_mask,grid_value,segment_mask,plot=False ,plot_animation=False,dump_json=False):
@@ -382,7 +369,7 @@ def create_hdf5_segemets_tags(roi,data_dirname,data_filename,metadata_dirname,me
     # output a list of ROIs in the hyperspectral image that has a unique PCI and connectivity of at least 3 pixels
     mask_list = pc_utils.process_labeled_image(hys_img, np.round(segment_mask),dilation_radius=3)
 
-    mask_all_channel_values,masks_tags_numerical = create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
+    mask_all_channel_values,masks_tags_numerical = apa_utils.create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
     basename = Path(Path(Path(data_filename).stem).stem).stem + '.h5'
 
     save_to_hdf5(data_dirname,basename,mask_all_channel_values,masks_tags_numerical)
@@ -397,7 +384,7 @@ def crop_runner_main(roi,data_dirname,data_filename,metadata_dirname,metadata_fi
     unique_values, counts = pc_utils.analyze_and_plot_grouped_histogram(segment_mask,group_range=5,min_value=1)
     masks_tags_bounds = (30, 50, 70, 85)  # bounds tags of each segements in format
     # (segement1_upperbound,segement2_lowerbound,segement2_upperbound,segement3_lowerbound,segement3_upperbound.....,segement_N_lowerbound)
-    mask_all_channel_values, masks_tags_numerical = create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
+    mask_all_channel_values, masks_tags_numerical = apa_utils.create_segments_mask(hys_img, segment_mask,masks_tags_bounds)
     stats_from_mask(mask_all_channel_values, X_cropped, Y_cropped, hys_img, points_merge_PCI, x_new, y_new,
                     coinciding_mask, grid_value, segment_mask, plot=True, plot_animation=False, dump_json=False)
 
