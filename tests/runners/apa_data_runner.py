@@ -3,7 +3,8 @@ import json
 import numpy as np
 from pathlib import Path
 import src.utils.io_utils
-from src.utils.apa_tester_utils import get_GT_xy_PCI,get_PCI_ROI,get_mask_from_roads_gdf,get_hypter_spectral_imaginery,create_proximity_mask
+from src.CONST import bands_dict
+import src.utils.apa_tester_utils as apa_utils
 import src.utils.PrepareDataForNN_module as pp
 from src.utils import ReadDetroitDataModule
 import matplotlib.pyplot as plt
@@ -108,26 +109,23 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
 
 
 def process_geo_data(config,data_dirname,data_filename,excel_path):
-    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
-    if "roi" in config["data"]:
+    lon_mat, lat_mat, VenusImage = apa_utils.get_hypter_spectral_imaginery(data_filename, data_dirname)
+    if "rois" in config["data"]:
         rois = config["data"]["rois"]
         roi = rois[0]
         roi = ((roi[0], roi[1]), (roi[2], roi[3]))
 
     else:
-        # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
-        # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
-        # roi = ((-83.14294, -83.00007), (42.34429, 42.39170))  # Detroit test data
         roi = (np.min(lat_mat), np.max(lat_mat),(np.min(lon_mat), np.max(lon_mat)))  # Use all data
         rois=[roi]
 
-    GT_xy_PCI=get_GT_xy_PCI(excel_path, isLatLon=True)
+    GT_xy_PCI=apa_utils.get_GT_xy_PCI(excel_path, isLatLon=True)
 
-    points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
+    points_PCI = apa_utils.get_PCI_ROI(roi,GT_xy_PCI)
 
     X_cropped,Y_cropped,hys_img = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
     npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
-    coinciding_mask = get_mask_from_roads_gdf(npz_filename, {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
+    coinciding_mask = apa_utils.get_mask_from_roads_gdf(npz_filename, {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
 
 
     # scatter_plot_with_annotations(points_PCI,ax_roi)
@@ -142,7 +140,7 @@ def process_geo_data(config,data_dirname,data_filename,excel_path):
     xy_points_merge = points_merge_PCI[:, :2]
 
     # create a mask based on proximity to point cloud data point
-    extended_mask = create_proximity_mask(xy_points_merge,X_cropped,Y_cropped)
+    extended_mask = apa_utils.create_proximity_mask(xy_points_merge,X_cropped,Y_cropped)
     # to mask out coninciding mask only where there it a PCI data
     # TODO: optimzie radius and size of sturcture element in the morphological operators
     combine_mask_roads = pc_utils.morphological_operator(extended_mask,'dilation',
@@ -155,7 +153,7 @@ def process_geo_data(config,data_dirname,data_filename,excel_path):
     grid_value = griddata(points_PCI[:,:2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
     segment_mask = grid_value * combine_mask_roads
     segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
-
+    stat_from_segments=[pc_utils.get_stats_from_segment_spectral(np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask==i))) for i in [1,2,3]]
 
     return X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask
 
@@ -202,15 +200,17 @@ def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
 
 
 if __name__ == "__main__":
-    # change only these paths or the ROI
-    # %% Get venus data
+    # change only these paths
     parent_path = ''
-    # data_dirname = os.path.join(parent_path, 'venus data/Detroit_20230710/')
+    config_path = '/Users/nircko/GIT/apa/configs/apa_config.yaml'
     data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
+
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+    # make use of dummy metadata until full metadata will be available
     metadata_filename = 'data/dummy_metadata.json'
 
-    convert_KML2CSV=False
+
+    convert_KML2CSV=False # if need to convert KML file into csv
     if convert_KML2CSV:
         kml_fullpath='/Users/nircko/DATA/apa/Detroit_20230710/Detroit_metadata/Pavement_Condition.kml'
         PCI_df, roi = ReadDetroitDataModule.parse_kml(kml_file = kml_fullpath)
@@ -218,7 +218,6 @@ if __name__ == "__main__":
     else:
         excel_path=os.path.join(REPO_ROOT,'data/Detroit/Pavement_Condition.csv')
 
-    config_path = '/Users/nircko/GIT/apa/configs/apa_config.yaml'
     create_database_from_VENUS(config_path,data_dirname, data_filename,metadata_filename, excel_path)
 
 
