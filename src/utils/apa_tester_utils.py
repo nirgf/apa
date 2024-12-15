@@ -11,6 +11,10 @@ import src.utils.point_cloud_utils as pc_utils
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
 ## Make plots interactive
+from matplotlib.path import Path as pltPath
+from scipy.spatial import cKDTree
+from skimage.draw import line
+import matplotlib.pyplot as plt
 import matplotlib
 
 # matplotlib.use('Qt5Agg')
@@ -161,3 +165,49 @@ def get_mask_from_roads_gdf(npz_filename,data=None):
 
         return coinciding_mask
 
+def fill_segement_pixels_to_curves(GT_xy_PCI,points_PCI,segment_id,X_cropped,Y_cropped):
+    x_segment = GT_xy_PCI[0].values
+    y_segment = GT_xy_PCI[1].values
+    polygon_coords = np.array([x_segment, y_segment
+                               ]).T
+    # Suppose polygon_coords is a list of (x, y) tuples in the same coordinate system as Xgrid/Ygrid
+    polygon_path = pltPath(polygon_coords)
+
+    # Flatten the grid to test all points at once
+    points = np.column_stack((X_cropped.ravel(), Y_cropped.ravel()))
+
+    # Check which points lie inside the polygon
+    inside = polygon_path.contains_points(points, radius=0.1)
+    print(inside.any())
+
+    # Reshape 'inside' back to the shape of Xgrid/Ygrid
+    inside_mask = inside.reshape(X_cropped.shape)
+    fill_mask = np.zeros_like(X_cropped, dtype=np.uint8)
+    fill_mask[inside_mask] = 1
+    plt.figure(114);
+    plt.imshow(fill_mask)
+
+    # Flatten the grid for nearest-neighbor search
+
+    grid_points = np.vstack((X_cropped.ravel(), Y_cropped.ravel())).T
+    tree = cKDTree(grid_points)
+
+    # Map real-world coordinates to pixel indices
+    pixel_indices = []
+    for x, y in polygon_coords:
+        dist, idx = tree.query([x, y])  # Nearest pixel index
+        pixel_indices.append(np.unravel_index(idx, X_cropped.shape))
+
+    # Create a blank mask and draw the line
+    height, width = X_cropped.shape
+    mask = np.zeros((height, width), dtype=np.uint8)
+
+    for (r1, c1), (r2, c2) in zip(pixel_indices, pixel_indices[1:]):
+        rr, cc = line(r1, c1, r2, c2)
+        mask[rr, cc] = 1
+    plt.figure(115);
+    plt.plot(x_segment, y_segment, 'r.');
+    plt.pcolormesh(X_cropped, Y_cropped, pc_utils.morphological_operator(mask, 'dilation',
+                                                                         'square',
+                                                                         20))
+    ###
