@@ -118,3 +118,67 @@ def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_n
     ax_roi.pcolormesh(X_cropped, Y_cropped, coinciding_mask, alpha=0.2)
     pass
 
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None):
+    """
+    Plot spectral curves with optional error bars for multiple segments.
+
+    Parameters:
+    -----------
+    wavelengths_array : np.ndarray
+        Array of wavelengths (in micrometers) corresponding to the spectral bands.
+    stats : list
+        List of dictionaries, each containing statistics for a pixel value/segment.
+        Each dictionary should have:
+            - "pixel_value": The pixel value or tag.
+            - "statistics": A dictionary with "mean", "std", and optionally "count".
+    masks_tags_description : list or tuple, optional
+        Verbal descriptions of the tags (e.g., 'Critical', 'Moderate', 'Good'). If not provided,
+        "pixel_value" from each `stats` dictionary will be used as labels.
+    """
+    plt.figure(figsize=(10, 6))
+    colors = ["r", "y", "g", "b", "c", "m"]  # Extendable color list
+
+    # Loop through the stats list and plot each segment
+    for idx, stat_dict in enumerate(stats):
+        pixel_value = stat_dict.get("pci_value", f"Tag_{idx}")
+        stat = stat_dict["statistics"]  # Extract statistics dictionary
+
+        # prefered way to use dict but use of old function instead
+        # count = stat.get("count", 0)
+        # avg = stat.get("mean", [])
+        # std = stat.get("std", [])
+        count = stat[0]
+        avg = stat[1]
+        std = stat[2]
+
+
+        # Assign color and label
+        color = colors[idx % len(colors)]
+        label = masks_tags_description[idx] if masks_tags_description and idx < len(
+            masks_tags_description) else f"{pixel_value} (N={count})"
+
+        # Plot mean curve with error bars
+        plt.plot(wavelengths_array, avg, color=color, label=label)
+        plt.errorbar(wavelengths_array, avg, yerr=std, fmt="o", color=color, alpha=0.5)
+
+    # Add visual indicators for visible (VIS) and infrared (IR) ranges
+    plt.axvline(x=0.45, color="pink", linestyle="--", linewidth=2)
+    plt.axvline(x=0.75, color="pink", linestyle="--", linewidth=2)
+    plt.text(0.72, plt.ylim()[1] * 0.9, "VIS", color="pink", fontsize=12, ha="center")
+    plt.text(0.77, plt.ylim()[1] * 0.9, "IR", color="pink", fontsize=12, ha="center")
+
+    # Plot aesthetics
+    plt.title("Spectral Statistics")
+    plt.xlabel("Wavelength [μm]")
+    plt.ylabel("AU")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
