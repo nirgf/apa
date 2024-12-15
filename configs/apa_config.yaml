@@ -1,16 +1,19 @@
 # General configuration for hyperspectral image processing and CNN-based analysis
 config:
   data:
-    input_path: "data/hyperspectral_images/"       # Path to hyperspectral images
-    output_path: "results/"                       # Directory for output results
-    bands_to_use: [10, 20, 30, 40, 50]            # Selected spectral bands for processing
-    spatial_resolution: 1.0                       # Resolution of the image in meters
-    label_file: "data/labels.csv"                 # Path to labels for supervised learning
+    input_path: "data/hyperspectral_images/"        # Path to hyperspectral images
+    output_path: "results/"                         # Directory for output results
+    bands_to_use: [10, 20, 30, 40, 50]              # Selected spectral bands for processing
+    spatial_resolution: 1.0                         # Resolution of the image in meters
+    label_file: "data/labels.csv"                   # Path to labels for supervised learning
+    rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
 
   preprocessing:
     normalization: true                           # Whether to normalize pixel values
     normalization_type: "min-max"                 # Type of normalization (min-max, z-score)
     spectral_smoothing: false                     # Whether to apply spectral smoothing
+    georeferencing:                               # Georeferencing to apply
+      merge_thrshld: [0.05]
     augmentations:                                # Augmentations to apply
       rotation: true                              # Enable random rotations
       flipping: true                              # Enable random horizontal/vertical flips
