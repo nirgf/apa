@@ -28,14 +28,12 @@ REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 
 #%% Generate Database For NN
-def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path):
+def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None):
 
     ### Get data and prepare it for NN ###
     # This also saves the data as .h5 files
     config = io_utils.read_yaml_config(config_path)
-    config_merge=io_utils.fill_with_defaults(config['config'])
-    io_utils.pretty_print_config(config_merge,config)
-    config=config_merge
+    config=io_utils.fill_with_defaults(config['config'])
     X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
         process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
@@ -109,12 +107,24 @@ def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
     return X_cropped,Y_cropped,hys_img
 
 
-def process_geo_data(roi,data_dirname,data_filename,excel_path):
+def process_geo_data(config,data_dirname,data_filename,excel_path):
+    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
+    if "roi" in config["data"]:
+        rois = config["data"]["rois"]
+        roi = rois[0]
+        roi = ((roi[0], roi[1]), (roi[2], roi[3]))
+
+    else:
+        # roi = ((35.095, 35.120), (32.802, 32.818))  # North East Kiryat Ata for train set
+        # roi = ((35.064, 35.072), (32.746, 32.754))  # South West Kiryat Ata for test set
+        # roi = ((-83.14294, -83.00007), (42.34429, 42.39170))  # Detroit test data
+        roi = (np.min(lat_mat), np.max(lat_mat),(np.min(lon_mat), np.max(lon_mat)))  # Use all data
+        rois=[roi]
+
     GT_xy_PCI=get_GT_xy_PCI(excel_path, isLatLon=True)
 
     points_PCI = get_PCI_ROI(roi,GT_xy_PCI)
 
-    lon_mat,lat_mat,VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
     X_cropped,Y_cropped,hys_img = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
     npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
     coinciding_mask = get_mask_from_roads_gdf(npz_filename, {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
@@ -127,6 +137,8 @@ def process_geo_data(roi,data_dirname,data_filename,excel_path):
     # this function merge different lane into one PCI (assumption, may not always be valid)
     # TODO: optimize threshold
     points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
+
+
     xy_points_merge = points_merge_PCI[:, :2]
 
     # create a mask based on proximity to point cloud data point
