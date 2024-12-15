@@ -211,3 +211,56 @@ def fill_segement_pixels_to_curves(GT_xy_PCI,points_PCI,segment_id,X_cropped,Y_c
                                                                          'square',
                                                                          20))
     ###
+
+
+def create_segments_mask(hys_img, segment_mask, masks_tags_bounds):
+    """
+    Creates mask segments based on segmented PCI image and their associated numerical tags.
+
+    Parameters:
+    -----------
+    hys_img : np.ndarray
+        Hyperspectral image array.
+    segment_mask : np.ndarray
+        Segmented PCI image.
+    masks_tags_bounds : list
+        List of bounds defining mask segments.
+
+    Returns:
+    --------
+    mask_all_channel_values : list
+        List of averaged masked values for each segment.
+    masks_tags_numerical : tuple
+        Numerical tag values for each segment, computed as the mean of lower and upper bounds.
+    """
+    # Ensure the bounds list has an even number of elements
+    if len(masks_tags_bounds) % 2 != 0:
+        raise ValueError("masks_tags_bounds must have an even number of elements.")
+
+    # Divide the segment_mask into regions based on bounds
+    masks_segments = pc_utils.divide_array(segment_mask, *masks_tags_bounds)
+
+    # Calculate numerical tag values as the mean of bounds
+    masks_tags_numerical = (
+                               np.mean([0, masks_tags_bounds[0]])  # Lower bound for the first segment
+                           ) + tuple(
+        np.mean([masks_tags_bounds[i], masks_tags_bounds[i + 1]])
+        for i in range(1, len(masks_tags_bounds) - 2, 2)
+    ) + (
+                               np.mean([masks_tags_bounds[-1], 100])  # Upper bound for the last segment
+                           )
+
+    print(f"Number of mask segments: {len(masks_segments)}")
+
+    # Compute average masked values for each segment
+    mask_all_channel_values = [
+        np.asarray(pc_utils.apply_masks_and_average(hys_img, mask_segment))
+        for mask_segment in masks_segments
+    ]
+
+    # Ensure the number of segments matches the number of tags
+    if len(mask_all_channel_values) != len(masks_tags_numerical):
+        raise ValueError("Mismatch between the number of mask segments and tags.")
+
+    return mask_all_channel_values, masks_tags_numerical
+
