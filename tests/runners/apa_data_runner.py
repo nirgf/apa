@@ -37,6 +37,9 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     config=io_utils.fill_with_defaults(config['config'])
     X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
         process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
+
+    stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
+
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
     # Gets the roads in general
     crop_size=config['preprocessing']['augmentations']['crop_size']
@@ -153,7 +156,6 @@ def process_geo_data(config,data_dirname,data_filename,excel_path):
     grid_value = griddata(points_PCI[:,:2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
     segment_mask = grid_value * combine_mask_roads
     segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
-    stat_from_segments=[pc_utils.get_stats_from_segment_spectral(np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask==i))) for i in [1,2,3]]
 
     return X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask
 
@@ -200,6 +202,9 @@ def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
 
 
 if __name__ == "__main__":
+    from src.CONST import bands_dict
+    wavelengths = [info['wavelength'] for info in bands_dict.values()]
+    wavelengths_array = 1e-3 * np.array(wavelengths)
     # change only these paths
     parent_path = ''
     config_path = '/Users/nircko/GIT/apa/configs/apa_config.yaml'
@@ -218,7 +223,18 @@ if __name__ == "__main__":
     else:
         excel_path=os.path.join(REPO_ROOT,'data/Detroit/Pavement_Condition.csv')
 
-    create_database_from_VENUS(config_path,data_dirname, data_filename,metadata_filename, excel_path)
+
+
+    ### Get data and prepare it for NN ###
+    # This also saves the data as .h5 files
+    config = io_utils.read_yaml_config(config_path)
+    config = io_utils.fill_with_defaults(config['config'])
+    # TODO: optimize config parameters for process_geo_data
+    X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, grid_value, segment_mask = \
+        process_geo_data(config, data_dirname=data_dirname, data_filename=data_filename, excel_path=excel_path)
+
+    stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
+    plt_utils.plot_spectral_curves(wavelengths_array,stat_from_segments)
 
 
 
