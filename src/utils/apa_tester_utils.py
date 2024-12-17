@@ -64,6 +64,7 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     #
     # #%% open map in browser
     # CovertITM2LatLon.showMap('points_map.html')
+    return (lon_vec,lat_vec,pci_vec),df
 
     return (lon_vec,lat_vec,pci_vec)
 
