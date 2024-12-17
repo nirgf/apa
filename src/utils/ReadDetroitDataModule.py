@@ -9,8 +9,11 @@ from datetime import datetime
 
 ## Make plots interactive
 import matplotlib
-#matplotlib.use('TkAgg')
 
+from tests.runners.apa_data_runner import REPO_ROOT
+
+#matplotlib.use('TkAgg')
+from src.utils.apa_tester_utils import REPO_ROOT
 def parse_kml(kml_file = "Pavement_Condition.kml", save_csv = True):
 
     tree = ET.parse(kml_file)
@@ -53,7 +56,7 @@ def parse_kml(kml_file = "Pavement_Condition.kml", save_csv = True):
     fin_df = filtered_df[['cond', 'coordinates','evalyear']]
     point_df = split_coordinates_to_points(fin_df)
     if save_csv:
-        point_df.to_csv("Detroit/Pavement_Condition.csv", index=False)
+        point_df.to_csv(os.path.join(REPO_ROOT,"data/Detroit/Pavement_Condition.csv"), index=False)
         # Display the DataFrame
         print('Parsed kml data and saved to cvs')
 
