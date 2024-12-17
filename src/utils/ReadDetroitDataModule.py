@@ -9,8 +9,11 @@ from datetime import datetime
 
 ## Make plots interactive
 import matplotlib
-#matplotlib.use('TkAgg')
 
+from tests.runners.apa_data_runner import REPO_ROOT
+
+#matplotlib.use('TkAgg')
+from src.utils.apa_tester_utils import REPO_ROOT
 def parse_kml(kml_file = "Pavement_Condition.kml", save_csv = True):
 
     tree = ET.parse(kml_file)
@@ -53,7 +56,7 @@ def parse_kml(kml_file = "Pavement_Condition.kml", save_csv = True):
     fin_df = filtered_df[['cond', 'coordinates','evalyear']]
     point_df = split_coordinates_to_points(fin_df)
     if save_csv:
-        point_df.to_csv("Detroit/Pavement_Condition.csv", index=False)
+        point_df.to_csv(os.path.join(REPO_ROOT,"data/Detroit/Pavement_Condition.csv"), index=False)
         # Display the DataFrame
         print('Parsed kml data and saved to cvs')
 
@@ -108,7 +111,9 @@ def plot_df_coords(fin_df):
 def split_coordinates_to_points(df):
     # Split coordinates into individual points
     expanded_rows = []
+    seg_num = 0
     for _, row in df.iterrows():
+        seg_num = seg_num + 1
         condition_str = row["cond"]
         coordinate_pairs = row["coordinates"].split(" ")
         for pair in coordinate_pairs:
@@ -118,7 +123,7 @@ def split_coordinates_to_points(df):
 
             lon, lat = map(float, pair.split(","))
             evalyear = pd.Timestamp(row['evalyear'])
-            expanded_rows.append({"PCI": condition, "latitude": lat, "longitude": lon,'S_Date':evalyear})
+            expanded_rows.append({"PCI": condition, "latitude": lat, "longitude": lon,'S_Date':evalyear, 'seg_id': seg_num})
 
     # Create a new DataFrame
     expanded_df = pd.DataFrame(expanded_rows)

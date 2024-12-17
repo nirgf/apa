@@ -17,6 +17,9 @@ from skimage.draw import line
 import matplotlib.pyplot as plt
 import matplotlib
 
+
+REPO_ROOT=os.path.abspath(os.path.join(os.getcwd(),'..','..'))
+
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
 
