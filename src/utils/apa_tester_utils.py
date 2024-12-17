@@ -66,8 +66,8 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     # CovertITM2LatLon.showMap('points_map.html')
     return (lon_vec,lat_vec,pci_vec),df
 
-    return (lon_vec,lat_vec,pci_vec)
 
+@pc_utils.log_execution_time
 def get_hypter_spectral_imaginery(data_filename,data_dirname):
     bands = range(1, 13)
     VenusImage_ls = []
@@ -278,3 +278,5 @@ def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3
         for i in masks_tags_numerical
     ]
     return stat_from_segments
+
+
