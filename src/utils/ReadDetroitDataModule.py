@@ -108,7 +108,9 @@ def plot_df_coords(fin_df):
 def split_coordinates_to_points(df):
     # Split coordinates into individual points
     expanded_rows = []
+    seg_num = 0
     for _, row in df.iterrows():
+        seg_num = seg_num + 1
         condition_str = row["cond"]
         coordinate_pairs = row["coordinates"].split(" ")
         for pair in coordinate_pairs:
@@ -118,7 +120,7 @@ def split_coordinates_to_points(df):
 
             lon, lat = map(float, pair.split(","))
             evalyear = pd.Timestamp(row['evalyear'])
-            expanded_rows.append({"PCI": condition, "latitude": lat, "longitude": lon,'S_Date':evalyear})
+            expanded_rows.append({"PCI": condition, "latitude": lat, "longitude": lon,'S_Date':evalyear, 'seg_id': seg_num})
 
     # Create a new DataFrame
     expanded_df = pd.DataFrame(expanded_rows)
