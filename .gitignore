@@ -154,3 +154,7 @@ wheels/
 venv*/*
 
 *.html
+*.Identifier
+*.tiff
+*.kml
+
