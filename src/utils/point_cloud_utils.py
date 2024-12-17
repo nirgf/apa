@@ -173,7 +173,7 @@ def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_c
 def merge_points_dijkstra(X_cropped, Y_cropped, hys_img, coinciding_mask, points_PCI, ROI_seg):
     ROI_seg = ROI_seg.to_list() # Covert to list
     PCI_mask = np.zeros(np.shape(coinciding_mask))
-    for point_idx in tqdm.tqdm(range(len(points_PCI)), desc = 'Filling PCI Data in Road Matrix'):
+    for point_idx in tqdm.tqdm(range(len(points_PCI)-1), desc = 'Filling PCI Data in Road Matrix'):
         
         point_lat = points_PCI[point_idx, 0]
         point_lon = points_PCI[point_idx, 1]
