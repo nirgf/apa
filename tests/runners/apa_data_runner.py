@@ -122,7 +122,7 @@ def process_geo_data(config,data_dirname,data_filename,excel_path):
         roi = (np.min(lat_mat), np.max(lat_mat),(np.min(lon_mat), np.max(lon_mat)))  # Use all data
         rois=[roi]
 
-    GT_xy_PCI=apa_utils.get_GT_xy_PCI(excel_path, isLatLon=True)
+    GT_xy_PCI,metadata_df=apa_utils.get_GT_xy_PCI(excel_path, isLatLon=True)
 
     points_PCI = apa_utils.get_PCI_ROI(roi,GT_xy_PCI)
 
