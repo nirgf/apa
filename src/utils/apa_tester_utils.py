@@ -17,9 +17,6 @@ from skimage.draw import line
 import matplotlib.pyplot as plt
 import matplotlib
 
-
-REPO_ROOT=os.path.abspath(os.path.join(os.getcwd(),'..','..'))
-
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
 
@@ -36,6 +33,10 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     df.columns = df.columns.str.lower() # make the columns name case-insensitive
 
     pci_vec = df.pci
+    
+    if 'seg_id' in df.columns.tolist():
+        seg_id = df.seg_id
+    else : seg_id = []
 
     # verify if latitude should be x and not longitude
     if 'x' in df.columns:
@@ -64,10 +65,9 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     #
     # #%% open map in browser
     # CovertITM2LatLon.showMap('points_map.html')
-    return (lon_vec,lat_vec,pci_vec),df
 
+    return (lon_vec,lat_vec,pci_vec, seg_id)
 
-@pc_utils.log_execution_time
 def get_hypter_spectral_imaginery(data_filename,data_dirname):
     bands = range(1, 13)
     VenusImage_ls = []
@@ -107,8 +107,8 @@ def get_PCI_ROI(roi,xy_pci):
     filtered_y = lat_vec[scatter_indices]
     filtered_PCI = pci_vec.values
     filtered_PCI = filtered_PCI[scatter_indices.ravel()]
-    points_PCI = np.c_[filtered_x, filtered_y, filtered_PCI]
-    return points_PCI
+    points_PCI = np.c_[filtered_x, filtered_y, filtered_PCI, ]
+    return points_PCI, scatter_indices
 
 
 def create_segments_mask(hys_img,segment_mask,masks_tags_bounds):
@@ -278,5 +278,3 @@ def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3
         for i in masks_tags_numerical
     ]
     return stat_from_segments
-
-

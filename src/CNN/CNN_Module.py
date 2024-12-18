@@ -17,6 +17,7 @@ from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, TensorBoard
+import tensorflow_addons as tfa
 from keras import backend as keras
 
 import matplotlib.pyplot as plt
@@ -39,7 +40,140 @@ import matplotlib.pyplot as plt
 
 #%% Define Net
 
-def unet(input_size = (32, 32, 12)):
+def unet_categorical(input_size = (32, 32, 12),  n_classes = 4 ):
+    inputs = Input(input_size)
+    # norm_inputs = BatchNormalization()(inputs)
+    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
+                                               kernel_initializer = 'he_normal'
+                                               )(inputs)
+    
+    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
+                                               kernel_initializer = 'he_normal'
+                                               )(conv1)
+    
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+    
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool1)
+    
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(conv2)
+    
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+    
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool2)
+    
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(conv3)
+    
+    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+    
+    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool3)
+    
+    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(conv4)
+    
+    drop4 = Dropout(0.5)(conv4)
+    
+    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
+
+    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', 
+                                                 kernel_initializer = 'he_normal'
+                                                 )(pool4)
+    
+    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', 
+                                                 kernel_initializer = 'he_normal'
+                                                 )(conv5)
+    
+    drop5 = Dropout(0.5)(conv5)
+
+    up6 = Conv2D(512, 2, activation = 'relu', padding = 'same', 
+                                              kernel_initializer = 'he_normal'
+                                              )(UpSampling2D(size = (2,2))(drop5))
+    
+    merge6 = concatenate([drop4,up6])
+    
+    conv6 = Conv2D(512, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(merge6)
+    
+    conv6 = Conv2D(512, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(conv6)
+
+    up7 = Conv2D(256, 2, activation = 'relu', padding = 'same',
+                                              kernel_initializer = 'he_normal'
+                                              )(UpSampling2D(size = (2,2))(conv6))
+    
+    merge7 = concatenate([conv3,up7])
+    
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(merge7)
+    
+    conv7 = Conv2D(256, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal'
+                                                )(conv7)
+
+    
+    up8 = Conv2D(128, 2, activation = 'relu', padding = 'same',
+                                              kernel_initializer = 'he_normal'
+                                              )(UpSampling2D(size = (2,2))(conv7))
+    
+    merge8 = concatenate([conv2,up8])
+    
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(merge8)
+    
+    conv8 = Conv2D(128, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(conv8)
+
+    up9 = Conv2D(64, 2, activation = 'relu', padding = 'same',
+                                             kernel_initializer = 'he_normal'
+                                             )(UpSampling2D(size = (2,2))(conv8))
+    
+    merge9 = concatenate([conv1,up9])
+    
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same',
+                                               kernel_initializer = 'he_normal'
+                                               )(merge9)
+    
+    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same',
+                                               kernel_initializer = 'he_normal'
+                                               )(conv9)
+    
+    conv9 = Conv2D(2, 3, activation = 'relu', padding = 'same',
+                                              kernel_initializer = 'he_normal'
+                                              )(conv9)
+    
+   
+    conv10 = Conv2D(n_classes, 1, activation='softmax')(conv9)
+    # conv10 = Conv2D(1, 1)(conv9)
+
+    model = Model(inputs = inputs, outputs = conv10)
+
+#    model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
+#                  metrics=['mean_absolute_error'])
+
+    model.compile(Adam(learning_rate = 1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    # Compile with the built-in Focal Loss
+    # model.compile(optimizer=Adam(learning_rate=1e-3),
+    #           loss=tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25, gamma=2.0),
+    #           metrics=['accuracy'])
+    
+    return model
+#%% For Continues data
+def unet_smooth(input_size = (32, 32, 12)):
     inputs = Input(input_size)
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
                                                kernel_initializer = 'he_normal'
@@ -155,36 +289,106 @@ def unet(input_size = (32, 32, 12)):
     
     conv10 = Conv2D(1, 1)(conv9)
 
-    model = Model(inputs = inputs, outputs = conv10)
 
     model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
-                  metrics=['mean_absolute_error'])
+                 metrics=['mean_absolute_error'])
 
     return model
+#%% For classification
+def unet_smooth(input_size = (32, 32, 12)):
+    inputs = Input(input_size)
+    norm_inputs = BatchNormalization()(inputs)
+    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
+                                               kernel_initializer = 'he_normal'
+                                               )(norm_inputs)
+    
+    conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
+                                               kernel_initializer = 'he_normal'
+                                               )(conv1)
+    
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+    
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool1)
+    
+    conv2 = Conv2D(128, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(conv2)
+    
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+    
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool2)
+    
+    conv3 = Conv2D(256, 3, activation = 'relu', padding = 'same',
+                                                kernel_initializer = 'he_normal'
+                                                )(conv3)
+    
+    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+    
+    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(pool3)
+    
+    conv4 = Conv2D(512, 3, activation = 'relu', padding = 'same', 
+                                                kernel_initializer = 'he_normal'
+                                                )(conv4)
+    
+    drop4 = Dropout(0.5)(conv4)
+    
+    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
 
+    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', 
+                                                 kernel_initializer = 'he_normal'
+                                                 )(pool4)
+    
+    conv5 = Conv2D(1024, 3, activation = 'relu', padding = 'same', 
+                                                 kernel_initializer = 'he_normal'
+                                                 )(conv5)
+    
+    model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
+                 metrics=['mean_absolute_error'])
+
+    
 #%% Run Preprocess
 
 print('*'*30)
 print('Loading and preprocessing train data...')
 print('*'*30)
 
-file_hsp = h5py.File('Labeld_RoadsVenus.h5', 'r')
-file_PCI = h5py.File('PCI_labels.h5', 'r')
+n_classes = 4 # Need to read from config
+file_hsp = h5py.File('Detroit/Labeld_RoadsVenus.h5', 'r')
+file_PCI = h5py.File('Detroit/PCI_labels.h5', 'r')
 img_train = file_hsp['cropped_segments'][:]
 mask_train = file_PCI['cropped_segments'][:]
 img_train = np.array(img_train)
 mask_train = np.array(mask_train)
 
+categorical_mask_train = np.zeros(list(np.shape(mask_train)[:-1]) + [n_classes])
+mask_train_int = mask_train.astype('int')
+for i in range(n_classes):
+    class_idx = np.where(mask_train_int == i)
+    categorical_mask_train[class_idx[0], class_idx[1], class_idx[2], class_idx[3]+i] = 1    
+
 img_train = img_train.astype('float32')
+
 # img_train /= 255
 
 mask_train = mask_train.astype('float32')
 # mask_train /= 255  # scale masks to [0, 1]
 
+
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    img_train, categorical_mask_train, test_size=0.2, random_state=1
+)
+
 print('*'*30)
 print('Creating and compiling model...')
 print('*'*30)
-model = unet()
+model = unet_categorical()
 
 #%% Show CNN properties
 model.summary()
@@ -194,24 +398,30 @@ print('*'*30)
 print('Fitting model...')
 print('*'*30)
 
-epochs = 100
+epochs = 200
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
 model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}epochs.keras', monitor='val_loss', save_best_only=True)
 
-history =  model.fit(img_train, mask_train, batch_size=16, epochs=epochs, verbose=1, shuffle=True,
-          validation_split=0.2,
-          callbacks=[model_checkpoint, early_stopping])
+# Define the learning rate scheduler
+from tensorflow.keras.callbacks import ReduceLROnPlateau
+reduce_lr = ReduceLROnPlateau(
+    monitor='val_accuracy',  # Metric to monitor
+    factor=0.1,          # Reduce the learning rate by this factor
+    patience=40,          # Number of epochs with no improvement before reducing
+    min_lr=1e-8          # Minimum learning rate
+)
+
+history =  model.fit(X_train, y_train, batch_size=128, epochs=epochs, verbose=1, shuffle=True, validation_data=(X_test, y_test),
+          callbacks=[model_checkpoint, early_stopping, reduce_lr])
 
 #%% Test CNN
 plt.figure();
-plt.imshow(mask_train[1, :, :, 0])
-plt.clim(0, 100)
+plt.imshow(categorical_mask_train[60, :, :, 1:4])
 
 
-prediction = model.predict(img_train[:, :, :, :])
+prediction = model.predict(img_train[60:61, :, :, :])
 plt.figure();
-plt.imshow(prediction[1, :, :, 0])
-plt.clim(0, 100)
+plt.imshow(prediction[0, :, :, 1:4])
 
 
 #%% Plot Training Loss
@@ -225,3 +435,6 @@ plt.legend(['Train', 'Validation'], loc='upper right')
 plt.xticks()
 plt.yticks()
 plt.show()
+
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+predictions = model.predict(X_test)  # Shape: (num_samples, m, n, num_classes)
