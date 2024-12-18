@@ -636,8 +636,8 @@ def false_color_hyperspectral_image(hys_img):
 
 
     # Normalize each PCA component for display
-    red = normalize_img(pca_image[:, :, 0])
-    green = normalize_img(pca_image[:, :, 1])
+    red = normalize_img(pca_image[:, :, 1])
+    green = normalize_img(pca_image[:, :, 0])
     blue = normalize_img(pca_image[:, :, 2])
 
     # Stack the normalized components to create an RGB image
