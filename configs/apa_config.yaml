@@ -9,16 +9,25 @@ config:
     rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
 
   preprocessing:
-    normalization: true                           # Whether to normalize pixel values
-    normalization_type: "min-max"                 # Type of normalization (min-max, z-score)
-    spectral_smoothing: false                     # Whether to apply spectral smoothing
-    georeferencing:                               # Georeferencing to apply
-      merge_thrshld: [0.05]
-    augmentations:                                # Augmentations to apply
-      rotation: true                              # Enable random rotations
-      flipping: true                              # Enable random horizontal/vertical flips
-      cropping: true                              # Enable random cropping
-      crop_size: [64, 64]                         # Size of the cropped patches (height, width)
+    normalization: true                             # Whether to normalize pixel values
+    normalization_type: "min-max"                   # Type of normalization (min-max, z-score)
+    spectral_smoothing: false                       # Whether to apply spectral smoothing
+    
+    georeferencing:                                 # Georeferencing to apply
+      merge_threshold: [0.05]                       # Threshold for merging
+      merge_method: "mean_min"                      # Method for merging segments
+      osx_map_mask_path:                            # Relative path for OpenStreetMap roads mask
+        "data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz"
+      dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
+        "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
+  
+  augmentations:                                  # Augmentations to apply
+    rotation: true                                # Enable random rotations
+    flipping: true                                # Enable random horizontal/vertical flips
+    cropping: true                                # Enable random cropping
+    crop_size:                                    # Size of the cropped patches (height, width)
+      - 64
+      - 64
 
   cnn_model:
     architecture: "3D-CNN"                        # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
