@@ -1056,6 +1056,18 @@ def get_bounding_box(binary_mask):
     return bounding_box
 
 
+def plot_centered_window(image, center_xy, half_window_size):
+    h = half_window_size
+    x,y = center_xy
+    # Ensure the indices stay within image boundaries
+    y_min = max(0, y - h)
+    y_max = min(image.shape[0], y + h + 1)
+    x_min = max(0, x - h)
+    x_max = min(image.shape[1], x + h + 1)
+    # Extract the window
+    window = image[y_min:y_max, x_min:x_max]
+    return window
+
 
 if __name__ == "__main__":
 
