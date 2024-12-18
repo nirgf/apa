@@ -341,7 +341,8 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
     if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:
         npz_filename = config["preprocessing"]["georeferencing"]["osx_map_mask_path"]
     else:
-        npz_filename = os.path.join(REPO_ROOT, 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
+        npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
+    npz_filename=os.path.join(REPO_ROOT,npz_filename)
     coinciding_mask = get_mask_from_roads_gdf(npz_filename,
                                                         {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
 
@@ -375,7 +376,8 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
     if 'dijkstra_map_mask_path' in config["preprocessing"]["georeferencing"]:
         npz_filename = config["preprocessing"]["georeferencing"]["dijkstra_map_mask_path"]
     else:
-        npz_filename = os.path.join(REPO_ROOT, 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
+        npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz'
+    npz_filename=os.path.join(REPO_ROOT,npz_filename)
     merge_points_dijkstra=pc_utils.merge_points_dijkstra(npz_filename,X_cropped, Y_cropped, coinciding_mask, points_PCI, ROI_seg)
 
     # create a segemented image of PCI values based on extendedn mask
