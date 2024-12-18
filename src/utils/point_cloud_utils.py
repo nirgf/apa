@@ -559,28 +559,41 @@ def plot_normalized_histograms(channel_values, title):
 
 def get_stats_from_segment_spectral(segmented_pci_spectral):
     # Calculate the mean and standard deviation
+
+    # Copy the data to avoid modifying the original array
     data = np.copy(segmented_pci_spectral)
 
     # Number of data points
     spectral_bands, n_points = data.shape
 
-    mean = np.nanmean(data,axis=1)
-    std_dev = np.nanstd(data, ddof=1,axis=1)  # Use ddof=1 for sample standard deviation
+    # Compute statistics
+    mean = np.nanmean(data, axis=1)  # Mean ignoring NaNs
+    std_dev = np.nanstd(data, ddof=1, axis=1)  # Sample standard deviation (ddof=1)
+    sem = std_dev / np.sqrt(n_points)  # Standard Error of the Mean (SEM)
+    median = np.nanmedian(data, axis=1)  # Median ignoring NaNs
+    iqr = stats.iqr(data, axis=1, nan_policy='omit')  # Interquartile range (IQR)
+    min_val = np.nanmin(data, axis=1)  # Minimum value ignoring NaNs
+    max_val = np.nanmax(data, axis=1)  # Maximum value ignoring NaNs
 
-
-    # Calculate the Standard Error of the Mean (SEM)
-    sem = std_dev / np.sqrt(n_points)
-
-    # Define the confidence level (e.g., 95%)
+    # Calculate the margin of error for the mean (95% confidence interval)
     confidence_level = 0.95
-
-    # Calculate the t critical value (two-tailed)
     t_critical = stats.t.ppf((1 + confidence_level) / 2, df=n_points - 1)
-
-    # Calculate the margin of error
     margin_of_error = t_critical * sem
 
-    return (n_points,mean,std_dev,sem,margin_of_error)
+    # Compile results into a dictionary
+    results = {
+        "N_points": n_points,
+        "Mean": mean,
+        "Median": median,
+        "Std_dev": std_dev,
+        "SEM": sem,
+        "Margin_of_error": margin_of_error,
+        "IQR": iqr,
+        "Min": min_val,
+        "Max": max_val,
+    }
+
+    return results
 
 
 def laplacian_of_gaussian(image, sigma):
