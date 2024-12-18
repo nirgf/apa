@@ -140,7 +140,7 @@ def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,m
         Verbal descriptions of the tags (e.g., 'Critical', 'Moderate', 'Good'). If not provided,
         "pixel_value" from each `stats` dictionary will be used as labels.
     """
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(8, 4))
     colors = ["r", "y", "g", "b", "c", "m"]  # Extendable color list
 
     # Loop through the stats list and plot each segment
