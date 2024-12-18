@@ -11,6 +11,7 @@ from src.geo_reference import CovertITM2LatLon
 import src.utils.point_cloud_utils as pc_utils
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
+from skimage import exposure
 import h5py
 ## Make plots interactive
 from matplotlib.path import Path as pltPath
@@ -321,6 +322,17 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
     Z_cropped = kiryatAtaImg
 
     return X_cropped, Y_cropped, hys_img
+def equalize_image(img,fill=0):
+    nan_mask = np.isnan(img)
+    # fill instead of nan value
+    if fill==0:
+        val = 0
+    else:
+        val = np.nanmean(img)
+    image_nonan = np.nan_to_num(img, nan=val)
+    image_eq = exposure.equalize_hist(image_nonan)
+    image_eq[nan_mask] = np.nan # fill back with nan value
+    return image_eq
 
 
 def process_geo_data(config, data_dirname, data_filename, excel_path):
