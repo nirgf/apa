@@ -31,8 +31,12 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     config=io_utils.fill_with_defaults(config['config'])
 
     # Main function for doing geo-reference between PCI data and HSI images
-    X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
+    X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,segment_mask =\
         apa_utils.process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
+
+    stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
+    stat_from_segments = [pc_utils.get_stats_from_segment_spectral(
+        np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask == i))) for i in [1, 2, 3]]
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
 
     # Gets the roads in general
