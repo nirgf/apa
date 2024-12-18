@@ -9,7 +9,7 @@ Created on Thu Nov 21 14:26:39 2024
 import h5py
 import numpy as np
 
-def crop_image_to_segments(image, crop_size=64, overlap=0.1, image_dim=12):
+def crop_image_to_segments(config,image,image_dim=12):
     """
     Crops a 3D image into segments of specified size with overlap.
     
@@ -22,6 +22,9 @@ def crop_image_to_segments(image, crop_size=64, overlap=0.1, image_dim=12):
     Returns:
         np.ndarray: Cropped segments of shape (k, crop_size, crop_size, 12).
     """
+
+    overlap=config['cnn_model']['overlap']
+    crop_size=config['cnn_model']['crop_size']
     m, n, d = image.shape
     if d != image_dim:
         raise ValueError("Input image must have a third dimension of size " + str(image_dim))
