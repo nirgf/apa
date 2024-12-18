@@ -9,13 +9,13 @@ from shapely.geometry import LineString, Point
 from scipy.spatial.distance import cdist
 from skimage.morphology import disk, square,skeletonize
 from scipy.ndimage import binary_dilation,binary_erosion,binary_opening,binary_closing,distance_transform_edt, label,generate_binary_structure
-
+from scipy.sparse import csr_matrix, save_npz, load_npz
 from scipy.spatial import distance
 from collections import defaultdict, deque
 from scipy.ndimage import map_coordinates
 from skimage.measure import regionprops, regionprops_table
 from skimage.morphology import disk
-
+import os
 from scipy import stats
 import cv2
 import time
@@ -28,7 +28,7 @@ PURPLE_ON_BLACK = "\033[45;30m"
 RESET = "\033[0m"
 
 PIXEL_SZ= 4 # pixel size in meter
-
+REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 def log_execution_time(func):
     """
     A decorator that logs the function being called and its execution time.
@@ -152,6 +152,122 @@ def fit_spline_pc(points,**kwargs):
     line_string = LineString(np.c_[x_new, y_new])
 
     return x_new, y_new, line_string
+# -------------------------------
+# Continuesly connect Close Points
+# -------------------------------
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.sparse.csgraph import dijkstra
+from scipy.sparse import csr_matrix
+import tqdm
+def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_cropped):
+    XY_ind = np.unravel_index(np.argmin(np.square(X_cropped - point_lat)\
+                              + np.square(Y_cropped - point_lon))
+                              , np.shape(X_cropped))
+    temp_distance, nearest_indices = distance_transform_edt(~coinciding_mask, return_indices=True)
+    coinciding_true_index = tuple(nearest_indices[:, XY_ind[0], XY_ind[1]])
+    return coinciding_true_index
+
+
+def merge_points_dijkstra(X_cropped, Y_cropped, hys_img, coinciding_mask, points_PCI, ROI_seg):
+    ROI_seg = ROI_seg.to_list() # Covert to list
+    PCI_mask = np.zeros(np.shape(coinciding_mask))
+    for point_idx in tqdm.tqdm(range(len(points_PCI)-1), desc = 'Filling PCI Data in Road Matrix'):
+        
+        point_lat = points_PCI[point_idx, 0]
+        point_lon = points_PCI[point_idx, 1]
+
+        coinciding_true_index = get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_cropped)
+        PCI_mask[coinciding_true_index] =  points_PCI[point_idx, 2]
+        
+        if ROI_seg[point_idx] == ROI_seg[point_idx + 1]:
+            point_lat_nxtPnt = points_PCI[point_idx+1, 0]
+            point_lon_nxtPnt = points_PCI[point_idx+1, 1]
+            
+            coinciding_true_index_nxtPnt = get_nearest_road_point(point_lat_nxtPnt, point_lon_nxtPnt, coinciding_mask, X_cropped, Y_cropped)
+            
+            min_x_idx_mini_roi = min(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
+            max_x_idx_mini_roi = max(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
+            
+            min_y_idx_mini_roi = min(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
+            max_y_idx_mini_roi = max(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
+
+            cropped_start = [coinciding_true_index[0] - min_x_idx_mini_roi,\
+                             coinciding_true_index[1] - min_y_idx_mini_roi]
+            cropped_end = [coinciding_true_index_nxtPnt[0] - min_x_idx_mini_roi,\
+                             coinciding_true_index_nxtPnt[1] - min_y_idx_mini_roi]
+
+                
+            cropped_mask = coinciding_mask[min_x_idx_mini_roi : max_x_idx_mini_roi + 1,\
+                                           min_y_idx_mini_roi : max_y_idx_mini_roi + 1]
+            ## Get the path using dijkstra
+            path = dijkstra_vectorized(cropped_mask, cropped_start, cropped_end)
+            path = np.asarray(path)
+            full_path = np.asarray([path[:, 0] + min_x_idx_mini_roi,\
+                                    path[:, 1] + min_y_idx_mini_roi])
+            PCI_mask[full_path[0, :], full_path[1, :]] = points_PCI[point_idx, 2]
+            
+        
+    npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz')
+    save_npz(npz_filename, csr_matrix(PCI_mask))
+    print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
+
+        
+        
+        
+        #if points_PCI[point_idx, -1]
+# Vectorized Dijkstra's algorithm using scipy, with diagonal moves
+def dijkstra_vectorized(mask, start, stop):
+    rows, cols = mask.shape
+
+    # Create a sparse adjacency matrix for the grid
+    num_nodes = rows * cols
+    graph = np.zeros((num_nodes, num_nodes))
+
+    # Directions: Up, Down, Left, Right, and the 4 diagonals
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1),  # Up, Down, Left, Right
+                  (-1, -1), (-1, 1), (1, -1), (1, 1)]  # Diagonal directions
+
+    # Map (row, col) coordinates to node indices
+    def to_index(r, c):
+        return r * cols + c
+
+    # Construct the graph
+    for r in range(rows):
+        for c in range(cols):
+            if mask[r, c] == 1:  # Only valid nodes
+                node_index = to_index(r, c)
+                for dr, dc in directions:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols and mask[nr, nc] == 1:
+                        neighbor_index = to_index(nr, nc)
+                        graph[node_index, neighbor_index] = 1  # Add an edge with weight 1
+
+    # Convert the graph to a sparse matrix
+    graph_sparse = csr_matrix(graph)
+
+    # Perform Dijkstra's algorithm
+    start_idx = to_index(start[0], start[1])
+    stop_idx = to_index(stop[0], stop[1])
+
+    # Find the shortest path using Dijkstra
+    dist, pred = dijkstra(graph_sparse, indices=start_idx, return_predecessors=True)
+
+    # Reconstruct the path
+    path = []
+    current = stop_idx
+    while current != start_idx and current != -9999:  # -9999 is the sentinel for no path
+        path.append(current)
+        current = pred[current]
+    if current == start_idx:
+        path.append(start_idx)
+
+    # Convert path indices back to (row, col)
+    path = [(i // cols, i % cols) for i in path[::-1]]  # Reverse the path
+
+    return path
+
 # -------------------------------
 # Merge Close Points
 # -------------------------------
