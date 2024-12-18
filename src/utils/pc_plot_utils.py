@@ -123,7 +123,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None):
+def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,metric=None):
     """
     Plot spectral curves with optional error bars for multiple segments.
 
@@ -148,13 +148,15 @@ def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None):
         pixel_value = stat_dict.get("pci_value", f"Tag_{idx}")
         stat = stat_dict["statistics"]  # Extract statistics dictionary
 
-        # prefered way to use dict but use of old function instead
-        # count = stat.get("count", 0)
-        # avg = stat.get("mean", [])
-        # std = stat.get("std", [])
-        count = stat[0]
-        avg = stat[1]
-        std = stat[2]
+        if metric=='median': # use default metrics
+            count = stat.get("N_points", 0)
+            avg = stat.get("Median", [])
+            std = stat.get("IQR", [])
+        else:
+            count = stat.get("N_points", 0)
+            avg = stat.get("Mean", [])
+            std = stat.get("Std_dev", [])
+
 
 
         # Assign color and label
