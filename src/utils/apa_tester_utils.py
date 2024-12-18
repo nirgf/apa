@@ -72,6 +72,7 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
 
     return (lon_vec,lat_vec,pci_vec, seg_id)
 
+@pc_utils.log_execution_time
 def get_hypter_spectral_imaginery(data_filename,data_dirname):
     bands = range(1, 13)
     VenusImage_ls = []
@@ -148,6 +149,7 @@ def create_proximity_mask(xy_points_merge,X_Grid,Y_Grid,threshold=10e-5,*arg):
 
     return KDTree_mask
 
+@pc_utils.log_execution_time
 def get_mask_from_roads_gdf(npz_filename,data=None):
     if os.path.exists(npz_filename):
         print(f"File '{npz_filename}' exists. Loading data...")
