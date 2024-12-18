@@ -442,3 +442,18 @@ def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
                     dset.attrs['tag'] = tag
                     print(f"Created empty dataset '{dataset_name}' with a tag.")
 
+
+
+def vis_hys_image(hys_img,channels='rgb'):
+    if isinstance(channels,str) and channels=='rgb':
+        return np.stack((hys_img[:, :, 6], hys_img[:, :, 3], hys_img[:, :, 1]),axis=-1)
+    elif len(channels)>3:
+        return pc_utils.false_color_hyperspectral_image(hys_img)
+    elif len(channels)==3:
+        return np.stack((hys_img[:, :, channels[0]], hys_img[:, :, channels[1]], hys_img[:, :, channels[2]]),axis=-1)
+    elif len(channels)==1:
+        return hys_img[:, :, channels[0]]
+    else:
+        raise ValueError("Invalid input: channels can be 'rgb' or list of valid channels.")
+
+
