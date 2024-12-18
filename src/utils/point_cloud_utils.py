@@ -37,13 +37,14 @@ def log_execution_time(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        print(f"{PURPLE_ON_BLACK}Function '{func.__name__}' was called {RESET}")
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
         execution_time = end_time - start_time
 
         # Log function name and execution time in purple on black background
-        print(f"{PURPLE_ON_BLACK}Function '{func.__name__}' was called and took {execution_time:.4f} seconds{RESET}")
+        print(f"{PURPLE_ON_BLACK}Function '{func.__name__}' took {execution_time:.4f} seconds{RESET}")
 
         return result
 
