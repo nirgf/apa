@@ -5,6 +5,12 @@ from pathlib import Path
 import yaml
 import json
 
+# ANSI color codes
+reset = "\033[0m"
+white_bg_green_font = "\033[107m\033[32m"  # White background, green font
+gray_bg_light_green_font = "\033[100m\033[92m"  # Gray background, light green font
+
+
 default_config = {
     "paths": {
         "input_dir": "data/input",
@@ -15,7 +21,22 @@ default_config = {
         "overlap": 128
     },
     "preprocessing": {
-        "augmentations": {'crop_size': [256, 256]}
+        "augmentations": {'crop_size': [256, 256]},
+        "preprocessing": {
+            "normalization": True,
+            "normalization_type": "min-max",
+            "spectral_smoothing": False,
+            "georeferencing": {
+                "merge_threshold": [0.05],
+                "merge_method": "mean_min",
+            }
+        }
+
+    },
+    "cnn_model": {
+        "overlap": 0.2,
+        "crop_size": 64,
+
     }
 }
 
@@ -55,13 +76,14 @@ def merge_config(user_config, default_config):
                 # Use the user-provided value
                 merged[key] = user_value
         else:
-            # Use the default value
+            # If key is missing in user_config, use the default value
             merged[key] = default_value
 
     # Add any extra keys from user_config that are not in default_config
     for key in user_config:
         if key not in default_config:
-            merged[key] = user_config[key]
+            user_value = user_config[key]
+            merged[key] = user_value  # Add the extra key from user_config
 
     return merged
 
@@ -85,11 +107,6 @@ def pretty_print_config(final_config, default_config, user_config, indent=0):
         Indentation level for nested dictionaries.
     """
     indent_str = '  ' * indent
-
-    # ANSI color codes
-    reset = "\033[0m"
-    white_bg_green_font = "\033[107m\033[32m"  # White background, green font
-    gray_bg_light_green_font = "\033[100m\033[92m"  # Gray background, light green font
 
     for key, value in final_config.items():
         if isinstance(value, dict):
@@ -125,7 +142,11 @@ def values_equal(v1, v2):
 
 def fill_with_defaults(user_config):
     config_merge=merge_config(user_config, default_config)
+    print('*' * 20, 'CONFIG LOG COLORMAP', '*'* 20)
+    print(f"{white_bg_green_font}USER DEFINED{reset}")
+    print(f"{gray_bg_light_green_font}DEFAULT ADDED{reset}")
     pretty_print_config(config_merge,default_config, user_config)
+    print('*' * 60)
     return config_merge
 
 
