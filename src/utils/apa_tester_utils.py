@@ -337,58 +337,57 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
     points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
     ROI_seg = seg_id[ROI_point_idx]
 
+    #USE only relevant ROI
     X_cropped, Y_cropped, hys_img = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage)
-    if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:
-        npz_filename = config["preprocessing"]["georeferencing"]["osx_map_mask_path"]
-    else:
-        npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
-    npz_filename=os.path.join(REPO_ROOT,npz_filename)
-    coinciding_mask = get_mask_from_roads_gdf(npz_filename,
-                                                        {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
+
+    # this function merge different lane into one PCI (assumption, may not always be valid)
+    # TODO: optimize threshold
+    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
+    xy_points_merge = points_merge_PCI[:, :2]
+
 
     # scatter_plot_with_annotations(points_PCI,ax_roi)
     binary_mask = np.zeros(hys_img.shape[:-1])
 
-    # this function merge different lane into one PCI (assumption, may not always be valid)
-    ### Plot the data// visualization only
-    plt.figure()
-    plt.pcolormesh(X_cropped, Y_cropped, coinciding_mask)
-    plt.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -2], alpha=0.5)
-    plt.scatter(points_PCI[:, 0], points_PCI[:, 1])
-
-    # TODO: optimize threshold
-
-    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
-
-    xy_points_merge = points_merge_PCI[:, :2]
-
-    # create a mask based on proximity to point cloud data point
-    extended_mask = create_proximity_mask(xy_points_merge, X_cropped, Y_cropped)
-    # to mask out coninciding mask only where there it a PCI data
-    # TODO: optimzie radius and size of sturcture element in the morphological operators
-    combine_mask_roads = pc_utils.morphological_operator(extended_mask, 'dilation',
-                                                         'square',
-                                                         20) \
-                         * coinciding_mask
-    combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 5)
-
-    # Dijkstra merge point
-    if 'dijkstra_map_mask_path' in config["preprocessing"]["georeferencing"]:
-        npz_filename = config["preprocessing"]["georeferencing"]["dijkstra_map_mask_path"]
+    # USE open street maps for creating map of all
+    if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:
+        npz_filename = config["preprocessing"]["georeferencing"]["osx_map_mask_path"]
     else:
-        npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz'
-    npz_filename=os.path.join(REPO_ROOT,npz_filename)
-    merge_points_dijkstra=pc_utils.merge_points_dijkstra(npz_filename,X_cropped, Y_cropped, coinciding_mask, points_PCI, ROI_seg)
+        npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
 
-    # create a segemented image of PCI values based on extendedn mask
-    grid_value = griddata(points_PCI[:, :2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-    segment_mask = grid_value * combine_mask_roads
-    segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
-    stat_from_segments = analyze_pixel_value_ranges(hys_img, segment_mask)
-    stat_from_segments = [pc_utils.get_stats_from_segment_spectral(
-        np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask == i))) for i in [1, 2, 3]]
+    npz_filename = os.path.join(REPO_ROOT, npz_filename)
+    coinciding_mask = get_mask_from_roads_gdf(npz_filename,
+                                              {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
 
-    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, grid_value, segment_mask
+
+    if len(ROI_seg)==0: # if there is not segemts ID with the PCI data, use the old method for building mask for roads
+        # create a segemented image of PCI values based on extendedn mask
+
+        # create a mask based on proximity to point cloud data point
+        # TODO: optimzie radius and size of sturcture element in the morphological operators
+        extended_mask = create_proximity_mask(xy_points_merge, X_cropped, Y_cropped)
+        # to mask out coninciding mask only where there it a PCI data
+        combine_mask_roads = pc_utils.morphological_operator(extended_mask, 'dilation',
+                                                             'square',
+                                                             20) \
+                             * coinciding_mask
+        combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 5)
+        grid_value = griddata(points_PCI[:, :2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
+        segment_mask = grid_value * combine_mask_roads
+        segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
+    else:
+        # Dijkstra merge point
+        if 'dijkstra_map_mask_path' in config["preprocessing"]["georeferencing"]:
+            npz_filename = config["preprocessing"]["georeferencing"]["dijkstra_map_mask_path"]
+        else:
+            npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz'
+        npz_filename = os.path.join(REPO_ROOT, npz_filename)
+        merge_points_dijkstra = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
+                                                               points_PCI, ROI_seg)
+
+        segment_mask = pc_utils.nan_arr(merge_points_dijkstra)
+
+    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask
 
 
 # Function to save multi-band image parts and their tags
