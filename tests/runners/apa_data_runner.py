@@ -18,9 +18,8 @@ matplotlib.use('TkAgg')
 cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
 
-REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-
-
+REPO_ROOT=apa_utils.REPO_ROOT
+print(REPO_ROOT)
 
 #%% Generate Database For NN
 def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None):
