@@ -4,12 +4,14 @@ import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
 from src.CONST import bands_dict
+from scipy.interpolate import griddata
 import pandas as pd
 from src.utils import ImportVenusModule,getLatLon_fromTiff
 from src.geo_reference import CovertITM2LatLon
 import src.utils.point_cloud_utils as pc_utils
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
+import h5py
 ## Make plots interactive
 from matplotlib.path import Path as pltPath
 from scipy.spatial import cKDTree
@@ -19,6 +21,8 @@ import matplotlib
 
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
+
+REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
 def get_GT_xy_PCI(xls_path, isLatLon = False):
     #%% get NA data
@@ -32,19 +36,19 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
 
     df.columns = df.columns.str.lower() # make the columns name case-insensitive
 
-    pci_vec = df.pci
+    pci_vec = df.pci.values
     
     if 'seg_id' in df.columns.tolist():
-        seg_id = df.seg_id
+        seg_id = df.seg_id.values
     else : seg_id = []
 
     # verify if latitude should be x and not longitude
     if 'x' in df.columns:
-        x_vec = df.x
-        y_vec = df.y
+        x_vec = df.x.values
+        y_vec = df.y.values
     elif 'latitude' in df.columns:
-        x_vec = df.latitude
-        y_vec = df.longitude
+        x_vec = df.latitude.values
+        y_vec = df.longitude.values
     else:
         raise ValueError("The DataFrame must contain a column named 'x' or 'latitude'.")
 
@@ -105,7 +109,7 @@ def get_PCI_ROI(roi,xy_pci):
 
     filtered_x = lon_vec[scatter_indices]
     filtered_y = lat_vec[scatter_indices]
-    filtered_PCI = pci_vec.values
+    filtered_PCI = pci_vec
     filtered_PCI = filtered_PCI[scatter_indices.ravel()]
     points_PCI = np.c_[filtered_x, filtered_y, filtered_PCI, ]
     return points_PCI, scatter_indices
@@ -278,3 +282,148 @@ def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3
         for i in masks_tags_numerical
     ]
     return stat_from_segments
+
+
+def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
+    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi[0][0], roi[0][1], roi[1][0], roi[1][1]
+    # Get the indices corresponding to the cut boundaries
+    kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut) \
+                               & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
+
+    # %
+    # Cut the image based on indices
+    # Get the indices corresponding to the cut boundaries
+    # %
+    x_ind_min, x_ind_max = np.min(kiryatAtaIdx[:, 1]), np.max(kiryatAtaIdx[:, 1])
+    y_ind_min, y_ind_max = np.min(kiryatAtaIdx[:, 0]), np.max(kiryatAtaIdx[:, 0])
+    # Cut the image based on indices
+    kiryatAtaImg = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max,
+                   [6, 3, 1]].astype(float)
+    kiryatAtaImg[kiryatAtaImg <= 0] = np.nan
+    norm_vec = np.nanmax(kiryatAtaImg, axis=(0, 1)).astype(float)
+    for normBandIdx in range(len(norm_vec)):
+        kiryatAtaImg[:, :, normBandIdx] = kiryatAtaImg[:, :, normBandIdx] / norm_vec[normBandIdx]
+
+    lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+
+    lat_mat_KiryatAta = lat_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+
+    # normalize spectral image for all bands
+    hys_img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
+    hys_img = pc_utils.normalize_hypersepctral_bands(hys_img)
+
+    # Crop the X, Y, and Z arrays based on these indices
+    X_cropped = lat_mat_KiryatAta
+    Y_cropped = lon_mat_KiryatAta
+    # Apply the mask to the image
+    Z_cropped = kiryatAtaImg
+
+    return X_cropped, Y_cropped, hys_img
+
+
+def process_geo_data(config, data_dirname, data_filename, excel_path):
+    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname)
+    if "rois" in config["data"]:
+        rois = config["data"]["rois"]
+        roi = rois[0]
+        roi = ((roi[0], roi[1]), (roi[2], roi[3]))
+
+    else:
+        roi = (np.min(lat_mat), np.max(lat_mat), (np.min(lon_mat), np.max(lon_mat)))  # Use all data
+        rois = [roi]
+
+    GT_xy_PCI = get_GT_xy_PCI(excel_path, isLatLon=True)
+    seg_id = GT_xy_PCI[-1]
+    points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
+    ROI_seg = seg_id[ROI_point_idx]
+
+    X_cropped, Y_cropped, hys_img = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage)
+    if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:
+        npz_filename = config["preprocessing"]["georeferencing"]["osx_map_mask_path"]
+    else:
+        npz_filename = os.path.join(REPO_ROOT, 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
+    coinciding_mask = get_mask_from_roads_gdf(npz_filename,
+                                                        {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
+
+    # scatter_plot_with_annotations(points_PCI,ax_roi)
+    binary_mask = np.zeros(hys_img.shape[:-1])
+
+    # this function merge different lane into one PCI (assumption, may not always be valid)
+    ### Plot the data// visualization only
+    plt.figure()
+    plt.pcolormesh(X_cropped, Y_cropped, coinciding_mask)
+    plt.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -2], alpha=0.5)
+    plt.scatter(points_PCI[:, 0], points_PCI[:, 1])
+
+    # TODO: optimize threshold
+
+    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
+
+    xy_points_merge = points_merge_PCI[:, :2]
+
+    # create a mask based on proximity to point cloud data point
+    extended_mask = create_proximity_mask(xy_points_merge, X_cropped, Y_cropped)
+    # to mask out coninciding mask only where there it a PCI data
+    # TODO: optimzie radius and size of sturcture element in the morphological operators
+    combine_mask_roads = pc_utils.morphological_operator(extended_mask, 'dilation',
+                                                         'square',
+                                                         20) \
+                         * coinciding_mask
+    combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 5)
+
+    # Dijkstra merge point
+    if 'dijkstra_map_mask_path' in config["preprocessing"]["georeferencing"]:
+        npz_filename = config["preprocessing"]["georeferencing"]["dijkstra_map_mask_path"]
+    else:
+        npz_filename = os.path.join(REPO_ROOT, 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
+    merge_points_dijkstra=pc_utils.merge_points_dijkstra(npz_filename,X_cropped, Y_cropped, coinciding_mask, points_PCI, ROI_seg)
+
+    # create a segemented image of PCI values based on extendedn mask
+    grid_value = griddata(points_PCI[:, :2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
+    segment_mask = grid_value * combine_mask_roads
+    segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
+    stat_from_segments = analyze_pixel_value_ranges(hys_img, segment_mask)
+    stat_from_segments = [pc_utils.get_stats_from_segment_spectral(
+        np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask == i))) for i in [1, 2, 3]]
+
+    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, grid_value, segment_mask
+
+
+# Function to save multi-band image parts and their tags
+def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
+    with h5py.File(os.path.join(save_folder, file_name), 'a') as f:
+        for i, (arr, tag) in enumerate(zip(segements, tags)):
+            dataset_name = f'avg_PCI_{tag}'
+
+            if dataset_name in f:
+                if not (arr is not None and arr.size > 0):
+                    print('Skip:', dataset_name)
+                    continue
+                # Handle appending logic if the dataset already exists
+                dset = f[dataset_name]
+                original_shape = dset.shape
+
+                # the array to append has the same shape except for the first dimension
+                new_shape = (original_shape[0],) + (original_shape[1] + arr.shape[1],)
+                dset.resize(new_shape)  # Resize to accommodate new data
+                dset[-arr.shape[0]:] = arr  # Append new data
+                print(f"Appended data to existing dataset '{dataset_name}'.")
+
+            else:
+                if arr is not None and arr.size > 0:
+                    # Create a new dataset with metadata if it doesn't exist
+                    dset = f.create_dataset(dataset_name, data=arr, maxshape=(None,) + arr.shape[1:],
+                                            compression="gzip")
+                    dset.attrs['tag'] = tag  # Store the tag as an attribute
+                    print(f"Created new dataset '{dataset_name}' with data and a tag.")
+
+                    # Add custom metadata if provided
+                    if metadata and i in metadata:
+                        for key, value in metadata[i].items():
+                            dset.attrs[key] = value  # Store custom metadata
+                else:
+                    # Create an empty dataset for None or empty arrays
+                    dset = f.create_dataset(dataset_name, data=np.array([]), compression="gzip")
+                    dset.attrs['tag'] = tag
+                    print(f"Created empty dataset '{dataset_name}' with a tag.")
+

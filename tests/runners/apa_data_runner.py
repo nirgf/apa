@@ -1,8 +1,5 @@
 import os.path
-import json
 import numpy as np
-from pathlib import Path
-import src.utils.io_utils
 from src.CONST import bands_dict
 import src.utils.apa_tester_utils as apa_utils
 import src.utils.PrepareDataForNN_module as pp
@@ -10,10 +7,8 @@ from src.utils import ReadDetroitDataModule
 import matplotlib.pyplot as plt
 import src.utils.point_cloud_utils as pc_utils
 import src.utils.pc_plot_utils as plt_utils
-from scipy.interpolate import griddata
 ## Make plots interactive
 import matplotlib
-import h5py
 
 import src.utils.io_utils as io_utils
 
@@ -24,203 +19,62 @@ cmap_me = plt_utils.get_lighttraffic_colormap()
 plt.ion()
 
 REPO_ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-REPO_ROOT = ''
 
 
 
 #%% Generate Database For NN
-def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None, overlap = 0.2, crop_size = 32):
-
+def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None):
     ### Get data and prepare it for NN ###
-    # This also saves the data as .h5 files
+
+    # Read config and merge it with default values of configs if some keys are missing
     config = io_utils.read_yaml_config(config_path)
     config=io_utils.fill_with_defaults(config['config'])
+
+    # Main function for doing geo-reference between PCI data and HSI images
     X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask =\
-        process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
+        apa_utils.process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
     road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
+
     # Gets the roads in general
     # crop_size=config['preprocessing']['augmentations']['crop_size'][0]
     hys_roads = np.repeat(road_hys_filter, 12, -1)*hys_img
-    NN_inputs = pp.crop_image_to_segments(hys_roads, crop_size=crop_size, overlap=overlap, image_dim=12)
+    NN_inputs = pp.crop_image_to_segments(config,hys_roads, image_dim=12)
     NN_inputs[np.isnan(NN_inputs)] = 0
-    
+
+    # TODO: validate config values and add output path to functions that outputs files
     # Gets only the labeled roads
     labeled_road_mask = np.ones(np.shape(coinciding_mask))
     labeled_road_mask[np.isnan(segment_mask)] = 0
     labeled_road_mask = np.reshape(labeled_road_mask*coinciding_mask, list(np.shape(labeled_road_mask)) + [1])
     hys_labeled_roads = np.repeat(labeled_road_mask, 12, -1)*hys_img
-    NN_labeled_inputs = pp.crop_image_to_segments(hys_labeled_roads, crop_size=crop_size, overlap=overlap, image_dim=12)
+    NN_labeled_inputs = pp.crop_image_to_segments(config,hys_labeled_roads, image_dim=12)
     NN_labeled_inputs[np.isnan(NN_labeled_inputs)] = 0
     true_labels_full_image = np.reshape(segment_mask, list(np.shape(segment_mask)) + [1]) * labeled_road_mask
     true_labels_full_image[np.isnan(true_labels_full_image)] = 0
-    true_labels = pp.crop_image_to_segments(true_labels_full_image, crop_size=crop_size, overlap=overlap, image_dim=1)
+    true_labels = pp.crop_image_to_segments(config,true_labels_full_image, image_dim=1)
     
     # Remove frames with zeros only
     non_zero_idx = np.argwhere(np.sum(np.sum(np.sum(true_labels, -1), -1), -1) > 0)
     fin_NN_inputs = NN_inputs[non_zero_idx[:, 0], :, :, :]
     fin_true_labels = true_labels[non_zero_idx[:, 0], :, :, :]
     fin_NN_labeled_inputs = NN_labeled_inputs[non_zero_idx[:, 0], :, :, :]
-    
+    # TODO: validate config values and add output path to functions that outputs files
     ### Save the data ###
     pp.save_cropped_segments_to_h5(fin_NN_inputs, 'All_RoadVenus.h5')
     pp.save_cropped_segments_to_h5(fin_true_labels, 'PCI_labels.h5')
     pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, 'Labeld_RoadsVenus.h5')
-
-#%% Update Git Rules so the push will not get stuck
-# import UpdateGitIgnore
-# UpdateGitIgnore.main()
-
-
-def cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage):
-    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi[0][0], roi[0][1], roi[1][0], roi[1][1]
-    # Get the indices corresponding to the cut boundaries
-    kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut)\
-                            & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
-
-    #%
-    # Cut the image based on indices
-    # Get the indices corresponding to the cut boundaries
-    #%
-    x_ind_min,x_ind_max  = np.min(kiryatAtaIdx[:,1]), np.max(kiryatAtaIdx[:,1])
-    y_ind_min, y_ind_max = np.min(kiryatAtaIdx[:,0]), np.max(kiryatAtaIdx[:,0])
-    # Cut the image based on indices
-    kiryatAtaImg = VenusImage[y_ind_min:y_ind_max,x_ind_min:x_ind_max,
-                              [6, 3, 1]].astype(float)
-    kiryatAtaImg[kiryatAtaImg <= 0] = np.nan
-    norm_vec = np.nanmax(kiryatAtaImg, axis=(0,1)).astype(float)
-    for normBandIdx in range(len(norm_vec)):
-        kiryatAtaImg[:, :, normBandIdx] = kiryatAtaImg[:, :, normBandIdx]/norm_vec[normBandIdx]
-
-    lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
-
-    lat_mat_KiryatAta =  lat_mat[y_ind_min:y_ind_max,x_ind_min:x_ind_max]
-
-    # normalize spectral image for all bands
-    hys_img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
-    hys_img=pc_utils.normalize_hypersepctral_bands(hys_img)
-
-    # Crop the X, Y, and Z arrays based on these indices
-    X_cropped = lat_mat_KiryatAta
-    Y_cropped = lon_mat_KiryatAta
-    # Apply the mask to the image
-    Z_cropped = kiryatAtaImg
-
-    return X_cropped,Y_cropped,hys_img
-
-
-def process_geo_data(config,data_dirname,data_filename,excel_path):
-    lon_mat, lat_mat, VenusImage = apa_utils.get_hypter_spectral_imaginery(data_filename, data_dirname)
-    if "rois" in config["data"]:
-        rois = config["data"]["rois"]
-        roi = rois[0]
-        roi = ((roi[0], roi[1]), (roi[2], roi[3]))
-
-    else:
-        roi = (np.min(lat_mat), np.max(lat_mat),(np.min(lon_mat), np.max(lon_mat)))  # Use all data
-        rois=[roi]
-
-    GT_xy_PCI=apa_utils.get_GT_xy_PCI(excel_path, isLatLon=True)
-    seg_id = GT_xy_PCI[-1]
-    points_PCI, ROI_point_idx = apa_utils.get_PCI_ROI(roi,GT_xy_PCI[:3])
-    ROI_seg = seg_id[ROI_point_idx]
-
-    X_cropped,Y_cropped,hys_img = cropROI_Venus_image(roi,lon_mat,lat_mat,VenusImage)
-    npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz')
-    coinciding_mask = apa_utils.get_mask_from_roads_gdf(npz_filename, {"roi":roi,"X_cropped":X_cropped,"Y_cropped":Y_cropped})
-
-
-    # scatter_plot_with_annotations(points_PCI,ax_roi)
-    binary_mask = np.zeros(hys_img.shape[:-1])
-
-
-    # this function merge different lane into one PCI (assumption, may not always be valid)
-    ### Plot the data// visualization only
-    plt.figure()
-    plt.pcolormesh(X_cropped, Y_cropped, coinciding_mask)
-    plt.pcolormesh(X_cropped, Y_cropped, hys_img[:, :, -2], alpha=0.5)
-    plt.scatter(points_PCI[:, 0], points_PCI[:, 1])
-    
-    # TODO: optimize threshold
-    
-    points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
-
-
-    xy_points_merge = points_merge_PCI[:, :2]
-
-    # create a mask based on proximity to point cloud data point
-    extended_mask = apa_utils.create_proximity_mask(xy_points_merge,X_cropped,Y_cropped)
-    # to mask out coninciding mask only where there it a PCI data
-    # TODO: optimzie radius and size of sturcture element in the morphological operators
-    combine_mask_roads = pc_utils.morphological_operator(extended_mask,'dilation',
-                                                         'square',
-                                                          20) \
-                          * coinciding_mask
-    combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads,'closing','disk', 5)
-    
-    # Dijkstra merge point
-    pc_utils.merge_points_dijkstra(X_cropped, Y_cropped, hys_img, coinciding_mask, points_PCI, ROI_seg)
-
-    # create a segemented image of PCI values based on extendedn mask
-    grid_value = griddata(points_PCI[:,:2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-    segment_mask = grid_value * combine_mask_roads
-    segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
-    stat_from_segments=apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
-    stat_from_segments=[pc_utils.get_stats_from_segment_spectral(np.asarray(pc_utils.apply_masks_and_average(hys_img, segment_mask==i))) for i in [1,2,3]]
-
-    return X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,grid_value,segment_mask
-
-
-# Function to save multi-band image parts and their tags
-def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
-    with h5py.File(os.path.join(save_folder, file_name), 'a') as f:
-        for i, (arr, tag) in enumerate(zip(segements, tags)):
-            dataset_name = f'avg_PCI_{tag}'
-
-            if dataset_name in f:
-                if not (arr is not None and arr.size > 0):
-                    print('Skip:',dataset_name)
-                    continue
-                # Handle appending logic if the dataset already exists
-                dset = f[dataset_name]
-                original_shape = dset.shape
-
-                # the array to append has the same shape except for the first dimension
-                new_shape = (original_shape[0],) + (original_shape[1] + arr.shape[1],)
-                dset.resize(new_shape)  # Resize to accommodate new data
-                dset[-arr.shape[0]:] = arr  # Append new data
-                print(f"Appended data to existing dataset '{dataset_name}'.")
-
-            else:
-                if arr is not None and arr.size > 0:
-                    # Create a new dataset with metadata if it doesn't exist
-                    dset = f.create_dataset(dataset_name, data=arr, maxshape=(None,) + arr.shape[1:],
-                                            compression="gzip")
-                    dset.attrs['tag'] = tag  # Store the tag as an attribute
-                    print(f"Created new dataset '{dataset_name}' with data and a tag.")
-
-                    # Add custom metadata if provided
-                    if metadata and i in metadata:
-                        for key, value in metadata[i].items():
-                            dset.attrs[key] = value  # Store custom metadata
-                else:
-                    # Create an empty dataset for None or empty arrays
-                    dset = f.create_dataset(dataset_name, data=np.array([]), compression="gzip")
-                    dset.attrs['tag'] = tag
-                    print(f"Created empty dataset '{dataset_name}' with a tag.")
-
 
 
 
 if __name__ == "__main__":
     # change only these paths
     parent_path = ''
-    config_path = 'configs/apa_config.yaml'
-    data_dirname='data/Detroit/Venus_20230910'
+    config_path = os.path.join(apa_utils.REPO_ROOT,'configs/apa_config.yaml')
+    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
 
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     # make use of dummy metadata until full metadata will be available
     metadata_filename = 'data/dummy_metadata.json'
-
 
     convert_KML2CSV=False # if need to convert KML file into csv
     if convert_KML2CSV:
