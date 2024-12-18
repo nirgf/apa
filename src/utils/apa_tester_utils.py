@@ -300,12 +300,16 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
     x_ind_min, x_ind_max = np.min(kiryatAtaIdx[:, 1]), np.max(kiryatAtaIdx[:, 1])
     y_ind_min, y_ind_max = np.min(kiryatAtaIdx[:, 0]), np.max(kiryatAtaIdx[:, 0])
     # Cut the image based on indices
-    kiryatAtaImg = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max,
+    RGB_Img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max,
                    [6, 3, 1]].astype(float)
-    kiryatAtaImg[kiryatAtaImg <= 0] = np.nan
-    norm_vec = np.nanmax(kiryatAtaImg, axis=(0, 1)).astype(float)
+    RGB_Img[RGB_Img <= 0] = np.nan
+    norm_vec = np.nanmax(RGB_Img, axis=(0, 1)).astype(float)
     for normBandIdx in range(len(norm_vec)):
-        kiryatAtaImg[:, :, normBandIdx] = kiryatAtaImg[:, :, normBandIdx] / norm_vec[normBandIdx]
+        img=RGB_Img[:, :, normBandIdx]
+        # Create a mask for NaN values
+        RGB_Img[:, :, normBandIdx] = img / norm_vec[normBandIdx]
+        RGB_Img[:, :, normBandIdx] = equalize_image(img,1)
+
 
     lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
 
@@ -319,9 +323,10 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
     X_cropped = lat_mat_KiryatAta
     Y_cropped = lon_mat_KiryatAta
     # Apply the mask to the image
-    Z_cropped = kiryatAtaImg
+    Z_cropped = RGB_Img
 
-    return X_cropped, Y_cropped, hys_img
+    return X_cropped, Y_cropped, hys_img,Z_cropped, (x_ind_min,y_ind_min)
+
 def equalize_image(img,fill=0):
     nan_mask = np.isnan(img)
     # fill instead of nan value
@@ -352,7 +357,8 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
     ROI_seg = seg_id[ROI_point_idx]
 
     #USE only relevant ROI
-    X_cropped, Y_cropped, hys_img = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage)
+    X_cropped, Y_cropped, hys_img,RGB_enchanced, OC_xy = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage) # retun also optical center x,y relative to orignal map
+    print(f'Optical center ROI in xy[column][row]{OC_xy}\n')
 
     # this function merge different lane into one PCI (assumption, may not always be valid)
     # TODO: optimize threshold
