@@ -170,53 +170,60 @@ def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_c
     return coinciding_true_index
 
 
-def merge_points_dijkstra(X_cropped, Y_cropped, hys_img, coinciding_mask, points_PCI, ROI_seg):
-    ROI_seg = ROI_seg.to_list() # Covert to list
-    PCI_mask = np.zeros(np.shape(coinciding_mask))
-    for point_idx in tqdm.tqdm(range(len(points_PCI)-1), desc = 'Filling PCI Data in Road Matrix'):
-        
-        point_lat = points_PCI[point_idx, 0]
-        point_lon = points_PCI[point_idx, 1]
+def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
+    if os.path.exists(npz_filename):
+        print(f"File '{npz_filename}' exists. Loading data...")
+        return load_npz(npz_filename).toarray()
 
-        coinciding_true_index = get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_cropped)
-        PCI_mask[coinciding_true_index] =  points_PCI[point_idx, 2]
-        
-        if ROI_seg[point_idx] == ROI_seg[point_idx + 1]:
-            point_lat_nxtPnt = points_PCI[point_idx+1, 0]
-            point_lon_nxtPnt = points_PCI[point_idx+1, 1]
-            
-            coinciding_true_index_nxtPnt = get_nearest_road_point(point_lat_nxtPnt, point_lon_nxtPnt, coinciding_mask, X_cropped, Y_cropped)
-            
-            min_x_idx_mini_roi = min(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
-            max_x_idx_mini_roi = max(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
-            
-            min_y_idx_mini_roi = min(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
-            max_y_idx_mini_roi = max(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
+    else:
+        print(f"File '{npz_filename}' does not exist. Creating data...")
 
-            cropped_start = [coinciding_true_index[0] - min_x_idx_mini_roi,\
-                             coinciding_true_index[1] - min_y_idx_mini_roi]
-            cropped_end = [coinciding_true_index_nxtPnt[0] - min_x_idx_mini_roi,\
-                             coinciding_true_index_nxtPnt[1] - min_y_idx_mini_roi]
+        ROI_seg = ROI_seg # Covert to list
+        PCI_mask = np.zeros(np.shape(coinciding_mask))
+        for point_idx in tqdm.tqdm(range(len(points_PCI)-1), desc = 'Filling PCI Data in Road Matrix'):
 
-                
-            cropped_mask = coinciding_mask[min_x_idx_mini_roi : max_x_idx_mini_roi + 1,\
-                                           min_y_idx_mini_roi : max_y_idx_mini_roi + 1]
-            ## Get the path using dijkstra
-            path = dijkstra_vectorized(cropped_mask, cropped_start, cropped_end)
-            path = np.asarray(path)
-            full_path = np.asarray([path[:, 0] + min_x_idx_mini_roi,\
-                                    path[:, 1] + min_y_idx_mini_roi])
-            PCI_mask[full_path[0, :], full_path[1, :]] = points_PCI[point_idx, 2]
-            
-        
-    npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz')
-    save_npz(npz_filename, csr_matrix(PCI_mask))
-    print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
+            point_lat = points_PCI[point_idx, 0]
+            point_lon = points_PCI[point_idx, 1]
+
+            coinciding_true_index = get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_cropped)
+            PCI_mask[coinciding_true_index] =  points_PCI[point_idx, 2]
+
+            if ROI_seg[point_idx] == ROI_seg[point_idx + 1]:
+                point_lat_nxtPnt = points_PCI[point_idx+1, 0]
+                point_lon_nxtPnt = points_PCI[point_idx+1, 1]
+
+                coinciding_true_index_nxtPnt = get_nearest_road_point(point_lat_nxtPnt, point_lon_nxtPnt, coinciding_mask, X_cropped, Y_cropped)
+
+                min_x_idx_mini_roi = min(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
+                max_x_idx_mini_roi = max(coinciding_true_index[0], coinciding_true_index_nxtPnt[0])
+
+                min_y_idx_mini_roi = min(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
+                max_y_idx_mini_roi = max(coinciding_true_index[1], coinciding_true_index_nxtPnt[1])
+
+                cropped_start = [coinciding_true_index[0] - min_x_idx_mini_roi,\
+                                 coinciding_true_index[1] - min_y_idx_mini_roi]
+                cropped_end = [coinciding_true_index_nxtPnt[0] - min_x_idx_mini_roi,\
+                                 coinciding_true_index_nxtPnt[1] - min_y_idx_mini_roi]
+
+
+                cropped_mask = coinciding_mask[min_x_idx_mini_roi : max_x_idx_mini_roi + 1,\
+                                               min_y_idx_mini_roi : max_y_idx_mini_roi + 1]
+                ## Get the path using dijkstra
+                path = dijkstra_vectorized(cropped_mask, cropped_start, cropped_end)
+                path = np.asarray(path)
+                full_path = np.asarray([path[:, 0] + min_x_idx_mini_roi,\
+                                        path[:, 1] + min_y_idx_mini_roi])
+                PCI_mask[full_path[0, :], full_path[1, :]] = points_PCI[point_idx, 2]
+
+
+        npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz')
+        save_npz(npz_filename, csr_matrix(PCI_mask))
+        print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
+        return load_npz(npz_filename).toarray()
 
         
         
-        
-        #if points_PCI[point_idx, -1]
+
 # Vectorized Dijkstra's algorithm using scipy, with diagonal moves
 def dijkstra_vectorized(mask, start, stop):
     rows, cols = mask.shape
