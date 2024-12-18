@@ -171,6 +171,7 @@ def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_c
     return coinciding_true_index
 
 
+@log_execution_time
 def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
     if os.path.exists(npz_filename):
         print(f"File '{npz_filename}' exists. Loading data...")
