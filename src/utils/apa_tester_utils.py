@@ -3,6 +3,7 @@ import json
 import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
+import src.utils.pc_plot_utils
 from src.CONST import bands_dict
 from scipy.interpolate import griddata
 import pandas as pd
@@ -389,9 +390,9 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
         # to mask out coninciding mask only where there it a PCI data
         combine_mask_roads = pc_utils.morphological_operator(extended_mask, 'dilation',
                                                              'square',
-                                                             20) \
+                                                             1) \
                              * coinciding_mask
-        combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 5)
+        combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 3)
         grid_value = griddata(points_PCI[:, :2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
         segment_mask = grid_value * combine_mask_roads
         segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
@@ -405,9 +406,100 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
         merge_points_dijkstra = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
                                                                points_PCI, ROI_seg)
 
+
         segment_mask = pc_utils.nan_arr(merge_points_dijkstra)
 
+    ## add remove of non-gray parts due to incorrect geo-reference
+    # Initialize an empty mask for the result
+    dilated_mask=pc_utils.morphological_operator_multiclass_mask(merge_points_dijkstra, 'dilation', 'square', 1)
+    rgb_gray_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask)
+    # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(rgb_gray_enhanced, 'closing', 'square', 1)
+    segment_mask=pc_utils.nan_arr(rgb_gray_enhanced)
+
+    # ADD remove of outliers based on object detection on the RGB image
+    Y , _ , _ = pc_utils.rgb_to_yuv(RGB_enchanced)
+    grad_threshold = config["preprocessing"].get("grad_threshold", 0.6)
+
+    # do sobel over mean filter luminace visible image
+    _ , _ , mag = pc_utils.sobel_gradient(pc_utils.mean_filter(Y,3)) # do sobel over mean filter luminace visible image
+
+    # naive object detection using threshold over graident image, so find in region where there is a valid PCI mask where the grad of the RGB image is larger than defined threshold
+    objects_detected_im_mask = np.where(pc_utils.morphological_operator_multiclass_mask(merge_points_dijkstra, 'dilation', 'square', 3) > 0, mag, 0) > grad_threshold
+    segment_mask_obj_removed = np.where(objects_detected_im_mask,np.nan ,segment_mask)
+    print(f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100*(1-np.sum(~np.isnan(segment_mask_obj_removed))/np.sum(~np.isnan(segment_mask))):.2f}% of pixels from original mask\n\n')
+    debug_features_engineering=True
+    if debug_features_engineering:
+        channel_of_intreset=12
+        array=pc_utils.mean_filter(hys_img[:,:,channel_of_intreset-1],3)
+        debug_seg_id=3
+        debug_reflectivity_thrshld=0.22 # gray level thrshold
+        # exceeding_areas = (array > debug_seg_gray_thrshld) & (segment_mask == debug_seg_id)
+        exceeding_areas = (array > debug_reflectivity_thrshld) & (dilated_mask == debug_seg_id)
+        import src.utils.pc_plot_utils as plt_utils
+
+        plt.figure(figsize=(8, 8))
+        plt.imshow(RGB_enchanced, cmap='gray')
+        plt.colorbar()
+        plt.imshow(pc_utils.nan_arr(segment_mask_obj_removed.astype('float')), cmap=plt_utils.get_lighttraffic_colormap(), alpha=0.5,label='outliers_pixels')
+        plt.title(f'Geo-registration problem seg:{debug_seg_id}\nchannel12_trhsold_gl{debug_reflectivity_thrshld}')
+
+
+        plt.figure(figsize=(12, 6))
+        plt.subplot(1, 2, 1)
+        plt.pcolormesh(X_cropped, Y_cropped, RGB_enchanced)
+
+        plt.subplot(1, 2, 2)
+        plt.pcolormesh(X_cropped, Y_cropped, Y,cmap='gray')
+        plt.pcolormesh(X_cropped,Y_cropped,segment_mask_obj_removed)
+        # nonzero_indices = np.nonzero(np.nan_to_num(segment_mask_obj_removed,0))
+        # nonzero_indices_sparse=nonzero_indices[::10]
+        # values = segment_mask_obj_removed[nonzero_indices_sparse]
+        # plt.scatter(
+        #     X_cropped[nonzero_indices_sparse], Y_cropped[nonzero_indices_sparse],
+        #     c=values,
+        #     s=20,    # Marker size
+        #     marker="o", # Circle marker
+        #     edgecolor="black",  # Marker edge color
+        #     linewidths=0.05  # Marker edge width
+        # )
+        plt.scatter(
+            points_PCI[:,0], points_PCI[:,1],
+            c=points_PCI[:,2],
+            s=50,    # Marker size
+            marker="*",  # Circle marker
+            edgecolor="black",  # Marker edge color
+            linewidths=0.5  # Marker edge width
+        )
+        stat_from_segments = analyze_pixel_value_ranges(hys_img, segment_mask_obj_removed,[1,2,3])
+        wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
+        plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None)
+        pc_utils.apply_masks_and_average(hys_img, segment_mask_obj_removed == 3, debug_plots=True)
+
     return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask
+
+def enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask):
+    """
+    A function that takes mask of roads and refine it only where there is a gray color"
+    Args:
+        config:
+        RGB_enchanced: an RGB 3 channel image post histogram equalization
+        dilated_mask:
+    """
+    gray_threshold = config["preprocessing"].get("gray_threshold", 0.1)
+    # Calculate differences between RGB channels
+    diff_rg = np.abs(RGB_enchanced[:, :, 0] - RGB_enchanced[:, :, 1])  # Red vs Green
+    diff_rb = np.abs(RGB_enchanced[:, :, 0] - RGB_enchanced[:, :, 2])  # Red vs Blue
+    diff_gb = np.abs(RGB_enchanced[:, :, 1] - RGB_enchanced[:, :, 2])  # Green vs Blue
+    # Identify gray regions (all channel differences are within tolerance)
+    gray_color_mask = (diff_rg <= gray_threshold) & (diff_rb <= gray_threshold) & (diff_gb <= gray_threshold)
+    intensity = np.mean(RGB_enchanced, axis=2)
+    # Identify gray but not white regions
+    white_threshold = config["preprocessing"].get("white_threshold", 0.82)
+    not_white_mask = intensity < white_threshold
+    gray_but_not_white_mask = gray_color_mask & not_white_mask
+    # Combine gray regions with the input mask
+    combined_mask = np.where(dilated_mask.astype(bool) & gray_but_not_white_mask,dilated_mask,0)
+    return combined_mask
 
 
 # Function to save multi-band image parts and their tags
