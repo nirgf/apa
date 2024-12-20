@@ -410,9 +410,9 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
 
     ## Remove of non-gray parts due to incorrect geo-reference
     segment_mask_nan=pc_utils.nan_arr(classified_roads_mask)
-    rgb_gray_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,segment_mask_nan)
+    gray_color_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,segment_mask_nan)
     # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(rgb_gray_enhanced, 'closing', 'square', 1)
-    segment_mask=pc_utils.nan_arr(rgb_gray_enhanced)
+    segment_mask=pc_utils.nan_arr(gray_color_enhanced)
 
 
     # Remove of outliers based on object detection on the RGB image
