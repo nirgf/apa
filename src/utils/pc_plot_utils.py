@@ -119,11 +119,8 @@ def plot_scatter_over_map(X_cropped,Y_cropped,hys_img,points_merge_PCI,x_new,y_n
     pass
 
 
-import matplotlib.pyplot as plt
-import numpy as np
 
-
-def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,metric=None):
+def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,metric=None,**kwargs):
     """
     Plot spectral curves with optional error bars for multiple segments.
 
@@ -175,7 +172,8 @@ def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,m
     plt.text(0.77, plt.ylim()[1] * 0.9, "IR", color="pink", fontsize=12, ha="center")
 
     # Plot aesthetics
-    plt.title("Spectral Statistics")
+    title_kwargs = kwargs.get('title', "Spectral Statistics")
+    plt.title(title_kwargs)
     plt.xlabel("Wavelength [μm]")
     plt.ylabel("AU")
     plt.legend()
