@@ -18,6 +18,7 @@ from skimage.morphology import disk
 import os
 from scipy import stats
 import cv2
+from scipy.signal import convolve2d,convolve
 import time
 import functools
 from src.geo_reference import GetRoadsCoordinates
@@ -1147,6 +1148,16 @@ def rgb_to_yuv(image_rgb):
     return Y, U, V
 
 
+
+
+def mean_filter(image, kernel_size=3):
+    # Create a kernel of ones and normalize it
+    kernel = np.ones((kernel_size, kernel_size)) / (kernel_size * kernel_size)
+
+    # Apply the convolution
+    filtered_image = convolve2d(image, kernel, mode='same', boundary='symm')
+
+    return filtered_image
 
 if __name__ == "__main__":
 
