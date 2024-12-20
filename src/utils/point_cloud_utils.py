@@ -520,7 +520,7 @@ def dilate_mask(mask, dilation_pixels=3):
     return dilated_mask
 
 
-def apply_masks_and_average(image, mask):
+def apply_masks_and_average(image, mask,debug_plots=False):
     """
     Apply a mask to the multi-channel image and compute the average pixel values for each channel.
 
@@ -531,10 +531,41 @@ def apply_masks_and_average(image, mask):
     Returns:
     - channel_values: A list containing the averaged pixel values for each channel.
     """
+    channels=image.shape[2]
     # Apply the mask and extract the corresponding pixel values for each channel
-    channel_values = [image[:, :, channel][mask] for channel in range(image.shape[2])]
+    channels_values = [image[:, :, channel][mask] for channel in range(channels)]
+    print(channels_values)
+    print(len(channels_values))
+    if debug_plots:
+        # Compute layout for subplots
+        rows = int(np.ceil(np.sqrt(channels)))
+        cols = int(np.ceil(channels / rows))
+        # Prepare the plot
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 4, rows * 3))
+        axes = axes.flatten()
+        for i in range(channels):
+            ax = axes[i]
+            channel_data = channels_values[i]
+            mean = np.nanmean(channel_data)
+            median = np.nanmedian(channel_data)
+            ax.hist(channels_values[i], bins=50, color='gray', edgecolor='black', alpha=0.7)
+            ax.set_title(f"Channel {i + 1}")
+            ax.set_xlabel("Pixel Value")
+            ax.set_ylabel("Frequency")
+            # Annotate mean and median
+            ax.axvline(mean, color='blue', linestyle='dashed', linewidth=1, label=f"Mean: {mean:.2f}")
+            ax.axvline(median, color='red', linestyle='solid', linewidth=1, label=f"Median: {median:.2f}")
+            ax.legend()
 
-    return channel_values
+        # Hide unused subplots if any
+        for j in range(channels, len(axes)):
+            axes[j].axis('off')
+        # Overall plot title
+        plt.suptitle("Pixel Value Histograms for Image Channels")
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.show()
+
+    return channels_values
 
 
 def plot_normalized_histograms(channel_values, title):
