@@ -1159,6 +1159,25 @@ def mean_filter(image, kernel_size=3):
 
     return filtered_image
 
+
+def sobel_gradient(image):
+    # Sobel kernels
+    image=np.nan_to_num(image, nan=np.nanmean(image))
+    sobel_x = np.array([[-1, 0, 1],
+                        [-2, 0, 2],
+                        [-1, 0, 1]])
+    sobel_y = np.array([[-1, -2, -1],
+                        [0, 0, 0],
+                        [1, 2, 1]])
+    # Convolve image with Sobel kernels
+    gx = convolve2d(image, sobel_x, mode='same', boundary='symm')
+    gy = convolve2d(image, sobel_y, mode='same', boundary='symm')
+    # Gradient magnitude
+    magnitude = np.sqrt(gx ** 2 + gy ** 2)
+    return gx, gy, magnitude
+
+
+
 if __name__ == "__main__":
 
     # Example point cloud with value dimension
