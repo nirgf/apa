@@ -394,8 +394,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
                              * coinciding_mask
         combine_mask_roads = pc_utils.morphological_operator(combine_mask_roads, 'closing', 'disk', 3)
         grid_value = griddata(points_PCI[:, :2], points_PCI[:, 2], (X_cropped, Y_cropped), method='nearest')
-        segment_mask = grid_value * combine_mask_roads
-        segment_mask = pc_utils.nan_arr(segment_mask)  # segment_mask[segment_mask <= 0] = np.nan
+        classified_roads_mask = grid_value * combine_mask_roads
     else:
         # Dijkstra merge point
         if 'dijkstra_map_mask_path' in config["preprocessing"]["georeferencing"]:
@@ -407,16 +406,16 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
                                                                points_PCI, ROI_seg)
 
 
-        segment_mask = pc_utils.nan_arr(merge_points_dijkstra)
+        classified_roads_mask = merge_points_dijkstra
 
-    ## add remove of non-gray parts due to incorrect geo-reference
-    # Initialize an empty mask for the result
-    dilated_mask=pc_utils.morphological_operator_multiclass_mask(merge_points_dijkstra, 'dilation', 'square', 1)
-    rgb_gray_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask)
+    ## Remove of non-gray parts due to incorrect geo-reference
+    segment_mask_nan=pc_utils.nan_arr(classified_roads_mask)
+    rgb_gray_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,segment_mask_nan)
     # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(rgb_gray_enhanced, 'closing', 'square', 1)
     segment_mask=pc_utils.nan_arr(rgb_gray_enhanced)
 
-    # ADD remove of outliers based on object detection on the RGB image
+
+    # Remove of outliers based on object detection on the RGB image
     Y , _ , _ = pc_utils.rgb_to_yuv(RGB_enchanced)
     grad_threshold = config["preprocessing"].get("grad_threshold", 0.6)
 
@@ -424,7 +423,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
     _ , _ , mag = pc_utils.sobel_gradient(pc_utils.mean_filter(Y,3)) # do sobel over mean filter luminace visible image
 
     # naive object detection using threshold over graident image, so find in region where there is a valid PCI mask where the grad of the RGB image is larger than defined threshold
-    objects_detected_im_mask = np.where(pc_utils.morphological_operator_multiclass_mask(merge_points_dijkstra, 'dilation', 'square', 3) > 0, mag, 0) > grad_threshold
+    objects_detected_im_mask = np.where(pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, 'dilation', 'square', 3) > 0, mag, 0) > grad_threshold
     segment_mask_obj_removed = np.where(objects_detected_im_mask,np.nan ,segment_mask)
     print(f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100*(1-np.sum(~np.isnan(segment_mask_obj_removed))/np.sum(~np.isnan(segment_mask))):.2f}% of pixels from original mask\n\n')
     debug_features_engineering=True
@@ -433,8 +432,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
         array=pc_utils.mean_filter(hys_img[:,:,channel_of_intreset-1],3)
         debug_seg_id=3
         debug_reflectivity_thrshld=0.22 # gray level thrshold
-        # exceeding_areas = (array > debug_seg_gray_thrshld) & (segment_mask == debug_seg_id)
-        exceeding_areas = (array > debug_reflectivity_thrshld) & (dilated_mask == debug_seg_id)
+        exceeding_areas = (array > debug_reflectivity_thrshld) & (classified_roads_mask == debug_seg_id)
         import src.utils.pc_plot_utils as plt_utils
 
         plt.figure(figsize=(8, 8))
@@ -450,7 +448,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
 
         plt.subplot(1, 2, 2)
         plt.pcolormesh(X_cropped, Y_cropped, Y,cmap='gray')
-        plt.pcolormesh(X_cropped,Y_cropped,segment_mask_obj_removed)
+        plt.pcolormesh(X_cropped,Y_cropped,segment_mask_obj_removed,cmap=plt_utils.get_lighttraffic_colormap())
         # nonzero_indices = np.nonzero(np.nan_to_num(segment_mask_obj_removed,0))
         # nonzero_indices_sparse=nonzero_indices[::10]
         # values = segment_mask_obj_removed[nonzero_indices_sparse]
@@ -465,6 +463,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
         plt.scatter(
             points_PCI[:,0], points_PCI[:,1],
             c=points_PCI[:,2],
+            cmap=plt_utils.get_lighttraffic_colormap(),
             s=50,    # Marker size
             marker="*",  # Circle marker
             edgecolor="black",  # Marker edge color
