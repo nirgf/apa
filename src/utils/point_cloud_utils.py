@@ -1114,6 +1114,40 @@ def plot_centered_window(image, center_xy, half_window_size):
     return window
 
 
+def rgb_to_yuv(image_rgb):
+    """
+    Converts an RGB image to YUV color space manually using NumPy.
+
+    Parameters:
+    - image_rgb: np.ndarray
+        Input image in RGB format with shape (H, W, 3).
+
+    Returns:
+    - image_yuv: np.ndarray
+        Output image in YUV format with shape (H, W, 3).
+    """
+    # Define the RGB to YUV conversion matrix (BT.601)
+    conversion_matrix = np.array([[0.299, 0.587, 0.114],
+                                  [-0.14713, -0.28886, 0.436],
+                                  [0.615, -0.51499, -0.10001]])
+
+    # Reshape the image to a 2D array of pixels
+    pixels = image_rgb.reshape(-1, 3)
+
+    # Apply the conversion matrix
+    yuv_pixels = np.dot(pixels, conversion_matrix.T)
+
+    # Reshape back to the original image shape
+    image_yuv = yuv_pixels.reshape(image_rgb.shape)
+
+    # Clip the values to the valid range [0, 255] and convert to uint8
+    # image_yuv = np.clip(image_yuv, 0, 255).astype(np.uint8)
+
+    Y, U, V = cv2.split(image_yuv)
+    return Y, U, V
+
+
+
 if __name__ == "__main__":
 
     # Example point cloud with value dimension
