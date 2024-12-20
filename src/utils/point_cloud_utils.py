@@ -521,7 +521,7 @@ def dilate_mask(mask, dilation_pixels=3):
     return dilated_mask
 
 
-def apply_masks_and_average(image, mask,debug_plots=False):
+def apply_masks_and_average(image, mask,debug_plots=False,**kwargs):
     """
     Apply a mask to the multi-channel image and compute the average pixel values for each channel.
 
@@ -562,7 +562,8 @@ def apply_masks_and_average(image, mask,debug_plots=False):
         for j in range(channels, len(axes)):
             axes[j].axis('off')
         # Overall plot title
-        plt.suptitle("Pixel Value Histograms for Image Channels")
+        suptitle_kwargs = kwargs.get('suptitle', "Pixel Value Histograms for Image Channels")
+        plt.suptitle(suptitle_kwargs)
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
 
