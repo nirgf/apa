@@ -25,19 +25,18 @@ config:
     rotation: true                                # Enable random rotations
     flipping: true                                # Enable random horizontal/vertical flips
     cropping: true                                # Enable random cropping
-    crop_size:                                    # Size of the cropped patches (height, width)
-      - 64
-      - 64
 
   cnn_model:
     architecture: "3D-CNN"                        # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
-    input_shape: [64, 64, 10]                     # Shape of input tensor (height, width, bands)
-    num_classes: 5                                # Number of target classes for classification
+    input_shape: [5, 5, 12]                       # Shape of input tensor (height, width, bands)
+    num_classes: 4                                # Number of target classes for classification
     base_filters: 32                              # Number of filters in the first layer
     dropout_rate: 0.5                             # Dropout rate for regularization
     activation_function: "relu"                   # Activation function to use
     optimizer: "adam"                             # Optimizer for training
     loss_function: "categorical_crossentropy"     # Loss function for training
+    crop_size: 5                                  # Size of the cropped patches (crop_size, crop_size)
+    overlap : 0.2
 
   training:
     batch_size: 16                                # Batch size for training
