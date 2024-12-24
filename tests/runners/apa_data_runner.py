@@ -36,21 +36,23 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
     wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
     plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,'median')
-    road_hys_filter = np.reshape(coinciding_mask, list(np.shape(coinciding_mask)) + [1])
+    binary_seg_mask = (segment_mask > 0)*1
+    road_hys_filter = np.reshape(binary_seg_mask, list(np.shape(segment_mask)) + [1])
 
     # Gets the roads in general
     # crop_size=config['preprocessing']['augmentations']['crop_size'][0]
-    hys_roads = np.repeat(road_hys_filter, 12, -1)*hys_img
-    NN_inputs = pp.crop_image_to_segments(config,hys_roads, image_dim=12)
+    num_of_channels = np.shape(hys_img)[-1]
+    hys_roads = np.repeat(road_hys_filter, num_of_channels, -1)*hys_img
+    NN_inputs = pp.crop_image_to_segments(config,hys_roads, image_dim=num_of_channels)
     NN_inputs[np.isnan(NN_inputs)] = 0
 
     # TODO: validate config values and add output path to functions that outputs files
     # Gets only the labeled roads
-    labeled_road_mask = np.ones(np.shape(coinciding_mask))
+    labeled_road_mask = np.ones(np.shape(binary_seg_mask))
     labeled_road_mask[np.isnan(segment_mask)] = 0
-    labeled_road_mask = np.reshape(labeled_road_mask*coinciding_mask, list(np.shape(labeled_road_mask)) + [1])
-    hys_labeled_roads = np.repeat(labeled_road_mask, 12, -1)*hys_img
-    NN_labeled_inputs = pp.crop_image_to_segments(config,hys_labeled_roads, image_dim=12)
+    labeled_road_mask = np.reshape(labeled_road_mask*binary_seg_mask, list(np.shape(labeled_road_mask)) + [1])
+    hys_labeled_roads = np.repeat(labeled_road_mask, num_of_channels, -1)*hys_img
+    NN_labeled_inputs = pp.crop_image_to_segments(config,hys_labeled_roads, image_dim=num_of_channels)
     NN_labeled_inputs[np.isnan(NN_labeled_inputs)] = 0
     true_labels_full_image = np.reshape(segment_mask, list(np.shape(segment_mask)) + [1]) * labeled_road_mask
     true_labels_full_image[np.isnan(true_labels_full_image)] = 0
@@ -73,7 +75,7 @@ if __name__ == "__main__":
     # change only these paths
     parent_path = ''
     config_path = os.path.join(apa_utils.REPO_ROOT,'configs/apa_config.yaml')
-    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
+    data_dirname='/home/ariep/Hyperspectral Road/brach_from_github/apa/data/Detroit/Venus_20230910'
 
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     # make use of dummy metadata until full metadata will be available
