@@ -40,7 +40,7 @@ import matplotlib.pyplot as plt
 
 #%% Define Net
 
-def unet_categorical(input_size = (32, 32, 12),  n_classes = 4 ):
+def unet_categorical(input_size = (32, 32, 12),  n_classes = 4 , use_focal = False):
     inputs = Input(input_size)
     # norm_inputs = BatchNormalization()(inputs)
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
@@ -163,13 +163,14 @@ def unet_categorical(input_size = (32, 32, 12),  n_classes = 4 ):
 
 #    model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
 #                  metrics=['mean_absolute_error'])
-
-    model.compile(Adam(learning_rate = 1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
+    if use_focal:
+        # Compile with the built-in Focal Loss
+        model.compile(optimizer=Adam(learning_rate=1e-3),
+                  loss=tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25, gamma=2.0),
+                  metrics=['accuracy'])
+    else:
+        model.compile(Adam(learning_rate = 1e-4), loss='categorical_crossentropy', metrics=['accuracy'])
     
-    # Compile with the built-in Focal Loss
-    # model.compile(optimizer=Adam(learning_rate=1e-3),
-    #           loss=tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25, gamma=2.0),
-    #           metrics=['accuracy'])
     
     return model
 #%% For Continues data
@@ -351,16 +352,125 @@ def unet_smooth(input_size = (32, 32, 12)):
     model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
                  metrics=['mean_absolute_error'])
 
+#%% Seq 3D-CNN
+# This is a sequantial model based on the course 'Analyzanig satellite hyperspectral imegery' on Udemy
+# https://www.udemy.com/course/hyperspectral-satellite-image-classification-using-deep-cnns/learn/lecture/36102952?start=0#overview
+from tensorflow.keras import layers, regularizers, Model
+from tensorflow.keras.optimizers import Adam
+
+def functional_cnn(n_categories=4, input_size=(5, 5, 12)):
+    inputs = layers.Input(shape=list(input_size) + [1], name='Input_Layer')
+
+    # First Conv3D block
+    x = layers.Conv3D(16, kernel_size=(2, 2, 1), activation='linear', 
+                      padding='same')(inputs)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # Second Conv3D block
+    x = layers.Conv3D(32, kernel_size=(3, 3, 3), activation='linear', 
+                      padding='same')(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # Third Conv3D block
+    x = layers.Conv3D(64, kernel_size=(3, 3, 3), activation='linear', 
+                      padding='same', 
+                      kernel_regularizer=regularizers.l2(1e-5))(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # Fourth Conv3D block
+    x = layers.Conv3D(128, kernel_size=(3, 3, 3), activation='linear', 
+                      padding='same', 
+                      kernel_regularizer=regularizers.l2(1e-5))(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # Fifth Conv3D block
+    x = layers.Conv3D(256, kernel_size=(3, 3, 3), activation='linear', 
+                      padding='same', 
+                      kernel_regularizer=regularizers.l2(1e-4))(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # Sixth Conv3D block
+    x = layers.Conv3D(12, kernel_size=(3, 3, 3), activation='linear', 
+                      padding='same', 
+                      kernel_regularizer=regularizers.l2(1e-4))(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+
+    # MaxPooling3D
+    x = layers.MaxPooling3D(pool_size=(4, 4, 2), padding='same')(x)
+
+    # Flattening
+    x = layers.Flatten()(x)
+
+    # Fully connected layer
+    x = layers.Dense(20, activation='linear', 
+                     kernel_regularizer=regularizers.l2(0.001))(x)
+    x = layers.LeakyReLU(negative_slope=0.1)(x)
+    x = layers.Dropout(0.5)(x)
+
+    # Output layer
+    outputs = layers.Dense(n_categories, activation='softmax')(x)
+
+    # Model definition
+    model = Model(inputs=inputs, outputs=outputs, name='Road_3DCNN')
+
+    # Compile the model
+    model.compile(
+        loss='categorical_crossentropy', 
+        optimizer=Adam(learning_rate=1e-2), 
+        metrics=['accuracy']
+    )
+
+    return model
+
+#%% Hybrid CNN
+def HybridCNN():
+ 
+    input_shape =  3, 3, 12, 1
+    n_outputs = 4
+
+     
+    imIn = Input(shape=input_shape)
     
+    conv_layer1 = Conv3D(filters=16, kernel_size=(1, 1, 7), activation='relu', padding='same')(imIn)
+    conv_layer2 = Conv3D(filters=32, kernel_size=(3, 3, 5), activation='relu',padding='same')(conv_layer1)
+    conv_layer3 = Conv3D(filters=32, kernel_size=(5, 5, 7), activation='relu',padding='same')(conv_layer2)
+
+    conv3d_shape = conv_layer3.shape
+    conv_layer3 = Reshape((conv3d_shape[1], conv3d_shape[2], conv3d_shape[3]*conv3d_shape[4]))(conv_layer3)
+
+    conv_layer4 = Conv2D(filters=64, kernel_size=(3,3), activation='relu',padding='same')(conv_layer3)
+    conv_layer5 = Conv2D(filters=64, kernel_size=(3,3), activation='relu',padding='same')(conv_layer4)
+
+    conv_layer5 = GlobalAveragePooling2D()(conv_layer5)
+    
+    flatten_layer = Flatten()(conv_layer5)
+
+    dense_layer1 = Dense(units=50, activation='relu')(flatten_layer)
+    dense_layer1 = Dropout(0.4)(dense_layer1)
+
+    dense_layer2 = Dense(units=20, activation='relu')(dense_layer1)
+    dense_layer2 = Dropout(0.4)(dense_layer2)
+  
+    output_layer = Dense(units=n_outputs, activation='softmax')(dense_layer2)
+ 
+    model = Model(inputs=[imIn], outputs=output_layer)
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate = 1e-3),\
+                  metrics=['accuracy'])
+
+
+
+    return model
 #%% Run Preprocess
 
 print('*'*30)
 print('Loading and preprocessing train data...')
 print('*'*30)
+# TODO: sort out the get path for the data
+# TODO: rename to CNN_Module without V2
 
 n_classes = 4 # Need to read from config
-file_hsp = h5py.File('Detroit/Labeld_RoadsVenus.h5', 'r')
-file_PCI = h5py.File('Detroit/PCI_labels.h5', 'r')
+file_hsp = h5py.File('Labeld_RoadsVenus.h5', 'r')
+file_PCI = h5py.File('PCI_labels.h5', 'r')
 img_train = file_hsp['cropped_segments'][:]
 mask_train = file_PCI['cropped_segments'][:]
 img_train = np.array(img_train)
@@ -368,9 +478,13 @@ mask_train = np.array(mask_train)
 
 categorical_mask_train = np.zeros(list(np.shape(mask_train)[:-1]) + [n_classes])
 mask_train_int = mask_train.astype('int')
+create_matrix_labels = False
 for i in range(n_classes):
     class_idx = np.where(mask_train_int == i)
-    categorical_mask_train[class_idx[0], class_idx[1], class_idx[2], class_idx[3]+i] = 1    
+    if create_matrix_labels :
+        categorical_mask_train[class_idx[0], class_idx[1], class_idx[2], class_idx[3]+i] = 1    
+    else:
+        categorical_mask_train[class_idx[0], class_idx[1]+i] = 1
 
 img_train = img_train.astype('float32')
 
@@ -379,6 +493,9 @@ img_train = img_train.astype('float32')
 mask_train = mask_train.astype('float32')
 # mask_train /= 255  # scale masks to [0, 1]
 
+zero_idicies = np.where(mask_train_int == 0)
+img_train = np.delete(img_train, zero_idicies[0][int(0.1*len(zero_idicies[0])):], axis=0)
+categorical_mask_train = np.delete(categorical_mask_train, zero_idicies[0][int(0.1*len(zero_idicies[0])):], axis = 0)
 
 from sklearn.model_selection import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(
@@ -388,8 +505,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 print('*'*30)
 print('Creating and compiling model...')
 print('*'*30)
-model = unet_categorical()
-
+# model = unet_categorical(use_focal = False)
+model = functional_cnn()
+#model = HybridCNN()
 #%% Show CNN properties
 model.summary()
 
@@ -398,36 +516,46 @@ print('*'*30)
 print('Fitting model...')
 print('*'*30)
 
-epochs = 200
-early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+epochs = 1000
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=200)
 model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}epochs.keras', monitor='val_loss', save_best_only=True)
 
 # Define the learning rate scheduler
 from tensorflow.keras.callbacks import ReduceLROnPlateau
 reduce_lr = ReduceLROnPlateau(
     monitor='val_accuracy',  # Metric to monitor
-    factor=0.1,          # Reduce the learning rate by this factor
-    patience=40,          # Number of epochs with no improvement before reducing
+    factor=0.8,          # Reduce the learning rate by this factor
+    patience=20,          # Number of epochs with no improvement before reducing
     min_lr=1e-8          # Minimum learning rate
 )
-
-history =  model.fit(X_train, y_train, batch_size=128, epochs=epochs, verbose=1, shuffle=True, validation_data=(X_test, y_test),
+# model.load_weights('weights_bceloss_301epochs.keras')
+history =  model.fit(X_train, y_train, batch_size=256, epochs=epochs, verbose=1, shuffle=True, validation_data=(X_test, y_test),
           callbacks=[model_checkpoint, early_stopping, reduce_lr])
 
-#%% Test CNN
-plt.figure();
-plt.imshow(categorical_mask_train[60, :, :, 1:4])
 
 
-prediction = model.predict(img_train[60:61, :, :, :])
-plt.figure();
-plt.imshow(prediction[0, :, :, 1:4])
+#%% Test CNN - if GT is a matrix (Unet)
+# plt.figure();
+# plt.imshow(categorical_mask_train[104, :, :, 1:4])
 
+
+# prediction = model.predict(img_train[104:104+1, :, :, :])
+# plt.figure();
+# plt.imshow(prediction[0, :, :, 1:4])
+
+
+
+#%% replace loss
+model = unet_categorical(use_focal = True)
+model.load_weights('weights_bceloss_300epochs.keras')
+history =  model.fit(X_train, y_train, batch_size=512, epochs=epochs, \
+                     verbose=1, shuffle=True, validation_data=(X_test, y_test),
+                     callbacks=[model_checkpoint, early_stopping, reduce_lr])
 
 #%% Plot Training Loss
 plt.figure()
-plt.semilogy(history.history['loss'], linewidth=1, color='r')                   
-plt.semilogy(history.history['val_loss'], linewidth=1, color='b')
+plt.plot(history.history['loss'], linewidth=1, color='r')                   
+plt.plot(history.history['val_loss'], linewidth=1, color='b')
 plt.title('Model train vs Validation Loss', fontweight="bold")
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
@@ -436,5 +564,17 @@ plt.xticks()
 plt.yticks()
 plt.show()
 
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-predictions = model.predict(X_test)  # Shape: (num_samples, m, n, num_classes)
+#%% Plot confution matrix
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+import pandas as pd
+import seaborn as sns
+pred = np.argmax(model.predict(X_test), axis=1)
+
+plt.figure(figsize = (10,7))
+mat = confusion_matrix(np.add(pred, 1), np.add(np.argmax(y_test, 1), 1))
+df_cm = pd.DataFrame(mat)
+sns.heatmap(df_cm, annot=True, fmt='d')
+plt.show()
+
+# Classification Report
+print(classification_report(pred, np.argmax(y_test, 1)))
