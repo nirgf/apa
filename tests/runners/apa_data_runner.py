@@ -80,6 +80,8 @@ if __name__ == "__main__":
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     # make use of dummy metadata until full metadata will be available
     metadata_filename = 'data/dummy_metadata.json'
+    # TODO : add the out path to cretae database script
+    dataset_out_path = ''
 
     convert_KML2CSV=False # if need to convert KML file into csv
     if convert_KML2CSV:
