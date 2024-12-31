@@ -3,6 +3,8 @@ config:
   data:
     input_path: "data/hyperspectral_images/"        # Path to hyperspectral images
     output_path: "results/"                         # Directory for output results
+    big_tiff: false                                 # is Tiff image contains all band or need to parse different tiff files into one array
+    zone: 'Detroit'                                 # How to convert the geo tiff coorindates into real world cooridantes
     bands_to_use: [10, 20, 30, 40, 50]              # Selected spectral bands for processing
     spatial_resolution: 1.0                         # Resolution of the image in meters
     label_file: "data/labels.csv"                   # Path to labels for supervised learning
