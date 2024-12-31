@@ -74,10 +74,18 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
 if __name__ == "__main__":
     # change only these paths
     parent_path = ''
-    config_path = os.path.join(apa_utils.REPO_ROOT,'configs/apa_config.yaml')
-    data_dirname='/home/ariep/Hyperspectral Road/brach_from_github/apa/data/Detroit/Venus_20230910'
 
-    data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+    # Detroit
+    # config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
+    # data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
+    # data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+
+    # Kiryat Ata
+    config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_kiryat_ata.yaml')
+    data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
+    data_filename = 'VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.DBL.TIF'
+    excel_path = 'data/KiryatAta/seker_nezakim.xls'
+
     # make use of dummy metadata until full metadata will be available
     metadata_filename = 'data/dummy_metadata.json'
     # TODO : add the out path to cretae database script
