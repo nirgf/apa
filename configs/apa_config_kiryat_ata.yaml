@@ -8,7 +8,7 @@ config:
     bands_to_use: [10, 20, 30, 40, 50]              # Selected spectral bands for processing
     spatial_resolution: 1.0                         # Resolution of the image in meters
     label_file: "data/labels.csv"                   # Path to labels for supervised learning
-    rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
+    rois: [[35.095, 35.120, 32.802, 32.818],[35.064, 35.072, 32.746, 32.754]]          # # North East Kiryat Ata for train set,South West Kiryat Ata for test set
 
   preprocessing:
     normalization: true                             # Whether to normalize pixel values
