@@ -22,7 +22,7 @@ REPO_ROOT=apa_utils.REPO_ROOT
 print(REPO_ROOT)
 
 #%% Generate Database For NN
-def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None):
+def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None,debug_plots=True):
     ### Get data and prepare it for NN ###
 
     # Read config and merge it with default values of configs if some keys are missing
@@ -35,7 +35,8 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
 
     stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
     wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
-    plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,'median')
+    if debug_plots:
+        plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,'mean')
     binary_seg_mask = (segment_mask > 0)*1
     road_hys_filter = np.reshape(binary_seg_mask, list(np.shape(segment_mask)) + [1])
 
@@ -76,7 +77,7 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
 
 
 if __name__ == "__main__":
-    # change only these paths
+    # change only paths
 
     #Detroit
     config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
