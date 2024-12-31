@@ -65,9 +65,9 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     fin_NN_labeled_inputs = NN_labeled_inputs[non_zero_idx[:, 0], :, :, :]
     # TODO: validate config values and add output path to functions that outputs files
     ### Save the data ###
-    pp.save_cropped_segments_to_h5(fin_NN_inputs, 'All_RoadVenus.h5')
-    pp.save_cropped_segments_to_h5(fin_true_labels, 'PCI_labels.h5')
-    pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, 'Labeld_RoadsVenus.h5')
+    pp.save_cropped_segments_to_h5(fin_NN_inputs, os.path.join(output_path,'All_RoadVenus.h5'))
+    pp.save_cropped_segments_to_h5(fin_true_labels, os.path.join(output_path,'PCI_labels.h5'))
+    pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, os.path.join(output_path,'Labeld_RoadsVenus.h5'))
 
 
 
