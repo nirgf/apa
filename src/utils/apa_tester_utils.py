@@ -317,6 +317,7 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
     lat_mat_KiryatAta = lat_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
 
     # normalize spectral image for all bands
+    # TODO: verfiy normalization method if has any effect on results
     hys_img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
     hys_img = pc_utils.normalize_hypersepctral_bands(hys_img)
 
