@@ -19,9 +19,9 @@ config:
       merge_threshold: [0.05]                       # Threshold for merging
       merge_method: "mean_min"                      # Method for merging segments
       osx_map_mask_path:                            # Relative path for OpenStreetMap roads mask
-        "data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz"
+        "data/KiryatAta/masks_OpenStreetMap/KiryatAta1_OpenSteet_roads_mask.npz"
       dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
-        "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
+        "data/KiryatAta/masks_OpenStreetMap/KiryatAta1_dijkstra_roads_mask.npz"
   
   augmentations:                                  # Augmentations to apply
     rotation: true                                # Enable random rotations
