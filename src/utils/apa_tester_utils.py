@@ -454,7 +454,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
 
         # Remove of outliers based on object detection on the RGB image
         Y , _ , _ = pc_utils.rgb_to_yuv(RGB_enchanced)
-        grad_threshold = config["preprocessing"].get("grad_threshold", 0.6)
+        grad_threshold = gdt
 
         # do sobel over mean filter luminace visible image
         _ , _ , mag = pc_utils.sobel_gradient(pc_utils.mean_filter(Y,3)) # do sobel over mean filter luminace visible image
