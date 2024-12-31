@@ -565,6 +565,7 @@ def save_to_hdf5(save_folder, file_name, segements, tags, metadata=None):
 
 
 def vis_hys_image(hys_img,channels='rgb'):
+    # a function that visualize multi channels image into a color/false color image
     if isinstance(channels,str) and channels=='rgb':
         return np.stack((hys_img[:, :, 6], hys_img[:, :, 3], hys_img[:, :, 1]),axis=-1)
     elif len(channels)>3:
