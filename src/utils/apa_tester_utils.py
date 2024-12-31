@@ -441,7 +441,7 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
                 objects_detected_im_mask = np.where(pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, 'dilation', 'square', 3) > 0, mag, 0) > grad_threshold
                 segment_mask_obj_removed = np.where(objects_detected_im_mask,np.nan ,segment_mask)
                 print(f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100*(1-np.sum(~np.isnan(segment_mask_obj_removed))/np.sum(~np.isnan(segment_mask))):.2f}% of pixels from original mask\n\n')
-                debug_features_engineering=True
+                debug_features_engineering=False
                 if debug_features_engineering:
                     channel_of_intreset=12
                     array=pc_utils.mean_filter(hys_img[:,:,channel_of_intreset-1],3)
@@ -458,11 +458,11 @@ def process_geo_data(config, data_dirname, data_filename, excel_path):
                     #            cmap='Reds', alpha=0.5, label='outliers_pixels')
                     # plt.title(f'Geo-registration problem seg:{debug_seg_id}\nchannel12_trhsold_gl{debug_reflectivity_thrshld}')
                     #
-                    # plt.figure(figsize=(8, 8))
-                    # plt.imshow(RGB_enchanced, cmap='gray')
-                    # plt.colorbar()
-                    # plt.imshow(pc_utils.nan_arr(segment_mask_obj_removed.astype('float')), cmap=plt_utils.get_lighttraffic_colormap(), alpha=0.5,label='outliers_pixels')
-                    # plt.title(f'Mask after enhancement:{title_dict}')
+                    plt.figure(figsize=(8, 8))
+                    plt.imshow(RGB_enchanced, cmap='gray')
+                    plt.colorbar()
+                    plt.imshow(pc_utils.nan_arr(segment_mask_obj_removed.astype('float')), cmap=plt_utils.get_lighttraffic_colormap(), alpha=0.5,label='outliers_pixels')
+                    plt.title(f'Mask after enhancement:{title_dict}')
                     #
                     #
                     # plt.figure(figsize=(12, 6))

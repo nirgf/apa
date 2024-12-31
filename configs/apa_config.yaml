@@ -28,20 +28,22 @@ config:
 
   cnn_model:
     architecture: "3D-CNN"                        # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
-    input_shape: [5, 5, 12]                       # Shape of input tensor (height, width, bands)
+    input_shape: (128, 128, 12)                   # Shape of input tensor (height, width, bands)
     num_classes: 4                                # Number of target classes for classification
     base_filters: 32                              # Number of filters in the first layer
     dropout_rate: 0.5                             # Dropout rate for regularization
     activation_function: "relu"                   # Activation function to use
     optimizer: "adam"                             # Optimizer for training
     loss_function: "categorical_crossentropy"     # Loss function for training
-    crop_size: 5                                  # Size of the cropped patches (crop_size, crop_size)
+    crop_size: 128                                # Size of the cropped patches (crop_size, crop_size)
     overlap : 0.2
 
   training:
     batch_size: 16                                # Batch size for training
-    epochs: 50                                    # Number of epochs to train the model
-    learning_rate: 0.001                          # Initial learning rate
+    epochs: 100                                    # Number of epochs to train the model
+    learning_rate_ini: 0.001                      # Initial learning rate
+    learning_rate_ref: 0.5e-4                     # Learning rate in the refinment phase
+    learning_rate_focal: 1e-3                     # Learning rate after switching to focal loss
     learning_rate_schedule:                       # Learning rate schedule
       type: "exponential_decay"                   # Type of schedule (e.g., step_decay, exponential_decay)
       decay_rate: 0.95                            # Decay rate for the learning rate
