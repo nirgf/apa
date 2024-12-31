@@ -14,6 +14,9 @@ config:
     normalization: true                             # Whether to normalize pixel values
     normalization_type: "min-max"                   # Type of normalization (min-max, z-score)
     spectral_smoothing: false                       # Whether to apply spectral smoothing
+    white_threshold: 0.83                           # define white level on RGB image
+    gray_threshold: 0.1                             # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
+    grad_threshold: 0.6                             # define gradient image maginitude over gray level image
     
     georeferencing:                                 # Georeferencing to apply
       merge_threshold: [0.05]                       # Threshold for merging
