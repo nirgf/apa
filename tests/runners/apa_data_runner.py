@@ -9,7 +9,7 @@ import src.utils.point_cloud_utils as pc_utils
 import src.utils.pc_plot_utils as plt_utils
 ## Make plots interactive
 import matplotlib
-
+from pathlib import Path
 import src.utils.io_utils as io_utils
 
 # matplotlib.use('Qt5Agg')
@@ -64,28 +64,32 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     fin_true_labels = true_labels[non_zero_idx[:, 0], :, :, :]
     fin_NN_labeled_inputs = NN_labeled_inputs[non_zero_idx[:, 0], :, :, :]
     # TODO: validate config values and add output path to functions that outputs files
+
     ### Save the data ###
     pp.save_cropped_segments_to_h5(fin_NN_inputs, os.path.join(output_path,'All_RoadVenus.h5'))
     pp.save_cropped_segments_to_h5(fin_true_labels, os.path.join(output_path,'PCI_labels.h5'))
     pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, os.path.join(output_path,'Labeld_RoadsVenus.h5'))
+    basename = Path(Path(Path(data_filename).stem).stem).stem + '.h5'
+    print(basename)
+
 
 
 
 if __name__ == "__main__":
     # change only these paths
 
-    # Detroit
-    # config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
-    # data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
-    # data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
-    # excel_path = os.path.join(REPO_ROOT, 'data/Detroit/Pavement_Condition.csv')
+    #Detroit
+    config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
+    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
+    data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+    excel_path = os.path.join(REPO_ROOT, 'data/Detroit/Pavement_Condition.csv')
 
-    # Kiryat Ata
-    config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_kiryat_ata.yaml')
-    parent_path = '/Users/nircko/DATA/apa'
-    data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
-    data_filename = 'VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.DBL.TIF'
-    excel_path = os.path.join(REPO_ROOT, 'data/KiryatAta/seker_nezakim.xls')
+    # #Kiryat Ata
+    # config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_kiryat_ata.yaml')
+    # parent_path = '/Users/nircko/DATA/apa'
+    # data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
+    # data_filename = 'VE_VM03_VSC_PDTIMG_L2VALD_ISRAELWB_20230531_FRE.DBL.TIF'
+    # excel_path = os.path.join(REPO_ROOT, 'data/KiryatAta/seker_nezakim.xls')
 
     # make use of dummy metadata until full metadata will be available
     metadata_filename = 'data/dummy_metadata.json'
