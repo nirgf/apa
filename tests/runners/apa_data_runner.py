@@ -28,10 +28,13 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     # Read config and merge it with default values of configs if some keys are missing
     config = io_utils.read_yaml_config(config_path)
     config=io_utils.fill_with_defaults(config['config'])
+    lon_mat, lat_mat, VenusImage,rois=apa_utils.data_importer(config, data_dirname, data_filename, metadata_filename)
+    print(f'Selected ROIs:{rois}')
+    for roi in rois:
+        # Main function for doing geo-reference between PCI data and HSI images
+        X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,segment_mask,segID_PCI_LUT =\
+            apa_utils.process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi)
 
-    # Main function for doing geo-reference between PCI data and HSI images
-    X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,segment_mask =\
-        apa_utils.process_geo_data(config,data_dirname=data_dirname, data_filename=data_filename,excel_path=excel_path)
 
     stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
     wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
