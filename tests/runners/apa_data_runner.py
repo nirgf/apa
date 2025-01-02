@@ -84,9 +84,15 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
         fin_NN_labeled_inputs = NN_labeled_inputs[non_zero_idx[:, 0], :, :, :]
         # TODO: validate config values and add output path to functions that outputs files
         ### Save the data ###
-        output_path = Path(output_dirname)
+        if output_dirname is None:
+            output_dirname=data_dirname
+        os.mkdir(output_dirname)
+
+        output_path = Path(output_dirname).mkdir(parents=True, exist_ok=True)
         base_files = ["All_RoadVenus", "PCI_labels", "Labeld_RoadsVenus","BoudingBoxList"]
         formatted_string = "_".join(map(lambda x: str(round(x)), roi))
+
+        pp.save_cropped_segments_to_h5(boudningbox_list_labeled_image, output_path / f"BoudingBoxList{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_NN_inputs, output_path / f"All_RoadVenus_{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_true_labels, output_path / f"PCI_labels_{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, output_path / f"Labeld_RoadsVenus_{formatted_string}.h5")
@@ -102,6 +108,8 @@ if __name__ == "__main__":
     #Detroit
     config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
     data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
+    data_dirname = '/root/APA/Data/Detroit/Detroit_20230710'
+
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     excel_path = os.path.join(REPO_ROOT, 'data/Detroit/Pavement_Condition.csv')
 
