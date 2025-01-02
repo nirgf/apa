@@ -356,19 +356,15 @@ def equalize_image(img,fill=0):
     image_eq[nan_mask] = np.nan # fill back with nan value
     return image_eq
 
-
-def process_geo_data(config, data_dirname, data_filename, excel_path):
-    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname,config["data"])
+def data_importer(config,data_dirname,data_filename,metadata_filename):
+    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname, config["data"])
     if "rois" in config["data"]:
         rois = config["data"]["rois"]
-        roi = rois[0]
-        roi = ((roi[0], roi[1]), (roi[2], roi[3]))
-
     else:
-        roi = ((np.min(lat_mat), np.max(lat_mat)), (np.min(lon_mat), np.max(lon_mat)))  # Use all data
+        roi = [np.min(lat_mat), np.max(lat_mat), np.min(lon_mat), np.max(lon_mat)]  # Use all data
         rois = [roi]
-    if config["data"]["zone"]=="Israel":
-        GT_xy_PCI = get_GT_xy_PCI(excel_path, isLatLon=False) # convert to Israel Coord to LatLon
+    return lon_mat, lat_mat, VenusImage,rois
+
         points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
         ROI_seg=[]
     else:
