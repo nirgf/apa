@@ -1037,7 +1037,7 @@ def extract_windows_from_mask(image, mask, window_length=16, window_width=3, ove
     return windows, centers
 
 
-def process_labeled_image(hyperspectral_image,labeled_image, dilation_radius=2):
+def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dilation_radius=2):
     """
     Process a labeled image to separate connected regions, apply dilation,
     and generate masks per region.
@@ -1094,11 +1094,17 @@ def process_labeled_image(hyperspectral_image,labeled_image, dilation_radius=2):
                 continue
             roi_list.append(roi)
 
+            # if there is a LUT so place the labels from the LUT, this add an option to make bounding box per segments ID for example
+            if labels_lut is None:
+                label_value=label_id
+            else:
+                label_value = labels_lut[str(int(label_id))]
+
             # Store mask info
             mask_size = np.sum(dilated_mask)
             mask_list.append({
                 'mask': roi,
-                'label': label_id,
+                'label': label_value,
                 'bounding_box': (min_row, min_col, max_row, max_col)
             })
 
