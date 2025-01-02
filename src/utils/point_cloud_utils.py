@@ -227,15 +227,23 @@ def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, poi
                 full_path = np.asarray([path[:, 0] + min_x_idx_mini_roi,\
                                         path[:, 1] + min_y_idx_mini_roi])
                 PCI_mask[full_path[0, :], full_path[1, :]] = points_PCI[point_idx, 2]
+                segID_mask[full_path[0, :], full_path[1, :]] = ROI_seg[point_idx]
+                PCI_segID_LUT[str(ROI_seg[point_idx])]=points_PCI[point_idx, 2]
 
 
         npz_filename=os.path.join(REPO_ROOT,'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz')
-        save_npz(npz_filename, csr_matrix(PCI_mask))
+        PCI_segID_LUT_filename=npz_file_path.with_suffix(".json")
+
+        save_npz(npz_filename, csr_matrix(segID_mask))
+        with open(PCI_segID_LUT_filename, 'w') as f:
+            json.dump(PCI_segID_LUT, f)
         print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
-        return load_npz(npz_filename).toarray()
+        with open(PCI_segID_LUT_filename, 'r') as f:
+            PCI_segID_LUT = json.load(f)
+        return load_npz(npz_filename).toarray(),PCI_segID_LUT
 
         
-        
+
 
 # Vectorized Dijkstra's algorithm using scipy, with diagonal moves
 def dijkstra_vectorized(mask, start, stop):
