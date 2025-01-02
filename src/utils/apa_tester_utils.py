@@ -516,6 +516,21 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
             pc_utils.apply_masks_and_average(hys_img, segment_mask_obj_removed == 3, debug_plots=True,suptitle=title_dict | {"pci=":3})
 
     return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask
+def enhance_mask_grad(grad_threshold,classified_roads_mask,RGB_enchanced,segment_mask_nan):
+    # Remove of outliers based on object detection on the RGB image
+    Y, _, _ = pc_utils.rgb_to_yuv(RGB_enchanced)
+    # do sobel over mean filter luminace visible image
+    _, _, mag = pc_utils.sobel_gradient(pc_utils.mean_filter(Y, 3))  # do sobel over mean filter luminace visible image
+
+    # naive object detection using threshold over graident image, so find in region where there is a valid PCI mask where the grad of the RGB image is larger than defined threshold
+    objects_detected_im_mask = np.where(
+        pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, 'dilation', 'square', 3) > 0, mag,
+        0) > grad_threshold
+
+    segment_mask_obj_removed = np.where(objects_detected_im_mask, np.nan, segment_mask_nan)
+    print(
+        f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100 * (1 - np.sum(~np.isnan(segment_mask_obj_removed)) / np.sum(~np.isnan(segment_mask_nan))):.2f}% of pixels from original mask\n\n')
+    return segment_mask_obj_removed
 
 def enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask):
     """
