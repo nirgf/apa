@@ -1114,8 +1114,9 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
             # Store mask info
             mask_size = np.sum(dilated_mask)
             mask_list.append({
-                'mask': roi,
+                'mask': masked_roi,
                 'label': label_value,
+                'SegID':segID,
                 'bounding_box': (min_row, min_col, max_row, max_col)
             })
 
