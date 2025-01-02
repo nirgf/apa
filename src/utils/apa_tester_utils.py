@@ -120,7 +120,7 @@ def get_PCI_ROI(roi,xy_pci):
     # ymin_cut = 32.802
     # ymax_cut = 32.818
     lon_vec, lat_vec, pci_vec = xy_pci
-    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi[0][0], roi[0][1], roi[1][0], roi[1][1]
+    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
     # Filter the scatter points to include only those within the ROI
     scatter_indices = (lon_vec >= xmin_cut) & (lon_vec <= xmax_cut) & \
                       (lat_vec >= ymin_cut) & (lat_vec <= ymax_cut)
@@ -304,7 +304,7 @@ def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3
 
 
 def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
-    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi[0][0], roi[0][1], roi[1][0], roi[1][1]
+    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
     # Get the indices corresponding to the cut boundaries
     kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut) \
                                & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
