@@ -21,8 +21,10 @@ import cv2
 from scipy.signal import convolve2d,convolve
 import time
 import functools
+from pathlib import Path
 from src.geo_reference import GetRoadsCoordinates
 from sklearn.decomposition import PCA
+import json
 import src.utils.pc_plot_utils as plt_utils
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -174,15 +176,23 @@ def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_c
 
 @log_execution_time
 def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
-    if os.path.exists(npz_filename):
+    npz_file_path = Path(npz_filename)
+    PCI_segID_LUT_filename=npz_file_path.with_suffix(".json")
+    if os.path.exists(npz_filename) and  os.path.exists(PCI_segID_LUT_filename):
         print(f"File '{npz_filename}' exists. Loading data...")
-        return load_npz(npz_filename).toarray()
+        # Load from JSON
+        with open(PCI_segID_LUT_filename, 'r') as f:
+            PCI_segID_LUT = json.load(f)
+
+        return load_npz(npz_filename).toarray(),PCI_segID_LUT
 
     else:
         print(f"File '{npz_filename}' does not exist. Creating data...")
 
         ROI_seg = ROI_seg # Covert to list
         PCI_mask = np.zeros(np.shape(coinciding_mask))
+        segID_mask = np.zeros(np.shape(coinciding_mask))
+        PCI_segID_LUT= {}
         for point_idx in tqdm.tqdm(range(len(points_PCI)-1), desc = 'Filling PCI Data in Road Matrix'):
 
             point_lat = points_PCI[point_idx, 0]
