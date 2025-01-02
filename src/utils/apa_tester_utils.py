@@ -365,16 +365,16 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
         rois = [roi]
     return lon_mat, lat_mat, VenusImage,rois
 
+def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
+    if config["data"]["zone"] == "Israel":
+        GT_xy_PCI = get_GT_xy_PCI(excel_path, isLatLon=False)  # convert to Israel Coord to LatLon
         points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
-        ROI_seg=[]
+        ROI_seg = []
     else:
         GT_xy_PCI = get_GT_xy_PCI(excel_path, isLatLon=True)
         points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
         seg_id = GT_xy_PCI[-1]
         ROI_seg = seg_id[ROI_point_idx]
-
-
-
     #USE only relevant ROI
     X_cropped, Y_cropped, hys_img,RGB_enchanced, OC_xy = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage) # retun also optical center x,y relative to orignal map
     print(f'Optical center ROI in xy[column][row]{OC_xy}\n')
@@ -398,9 +398,9 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
     coinciding_mask = get_mask_from_roads_gdf(npz_filename,
                                               {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
 
-
+    lut = None
     if len(ROI_seg)==0: # if there is not segemts ID with the PCI data, use the old method for building mask for roads
-        # create a segemented image of PCI values based on extendedn mask
+        # create a segemented image of PCI/SegID values based on extended mask
 
         # create a mask based on proximity to point cloud data point
         # TODO: optimzie radius and size of sturcture element in the morphological operators
@@ -420,21 +420,22 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
         else:
             npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz'
         npz_filename = os.path.join(REPO_ROOT, npz_filename)
-        merge_points_dijkstra = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
+        merge_points_dijkstra,lut = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
                                                                points_PCI, ROI_seg)
 
 
         classified_roads_mask = merge_points_dijkstra
 
-    ## Remove of non-gray parts due to incorrect geo-reference
     wt=config["preprocessing"].get("white_threshold", None)
     gyt = config["preprocessing"].get("gray_threshold", None)
     gdt = config["preprocessing"].get("grad_threshold", None)
     if any(x is None for x in (wt, gyt, gdt)):
         segment_mask=classified_roads_mask
     else:
+        ###
+        # Segments mask enhacement based on heuristic of gray color as asphalt indicator and object detection based on sobel gradient magnitude over Y channel (gray-level channel only)
+        ###
         title_dict={"wt":wt,"gyt":gyt,"gdt":gdt}
-
         # TODO: optimize all the parameters of enhancment
         enhance_morph_operator_type=config["preprocessing"].get("enhance_morph_operator_type", "dilation")
         enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 3)
@@ -443,79 +444,16 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
                 pc_utils.morphological_operator_multiclass_mask(classified_roads_mask,enhance_morph_operator_type, 'square', enhance_morph_operator_size))
         else:
             segment_mask_nan = pc_utils.nan_arr(classified_roads_mask)
-        gray_color_enhanced=enhance_gray_based_on_RGB(config,RGB_enchanced,segment_mask_nan)
+        ## Remove of non-gray parts due to incorrect geo-reference
+        gray_color_enhanced = enhance_gray_based_on_RGB(config, RGB_enchanced, segment_mask_nan)
         # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(gray_color_enhanced, 'closing', 'square', 1)
-        segment_mask=pc_utils.nan_arr(gray_color_enhanced)
+        segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
+        # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
+        segment_mask_nan=enhance_mask_grad(gdt,classified_roads_mask,RGB_enchanced,segment_mask_nan)
+        segment_mask=segment_mask_nan
+    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask,lut
 
 
-        # Remove of outliers based on object detection on the RGB image
-        Y , _ , _ = pc_utils.rgb_to_yuv(RGB_enchanced)
-        grad_threshold = gdt
-
-        # do sobel over mean filter luminace visible image
-        _ , _ , mag = pc_utils.sobel_gradient(pc_utils.mean_filter(Y,3)) # do sobel over mean filter luminace visible image
-
-        # naive object detection using threshold over graident image, so find in region where there is a valid PCI mask where the grad of the RGB image is larger than defined threshold
-        objects_detected_im_mask = np.where(pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, 'dilation', 'square', 3) > 0, mag, 0) > grad_threshold
-        segment_mask_obj_removed = np.where(objects_detected_im_mask,np.nan ,segment_mask)
-        print(f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100*(1-np.sum(~np.isnan(segment_mask_obj_removed))/np.sum(~np.isnan(segment_mask))):.2f}% of pixels from original mask\n\n')
-        debug_features_engineering=False
-        if debug_features_engineering:
-            channel_of_intreset=12
-            array=pc_utils.mean_filter(hys_img[:,:,channel_of_intreset-1],3)
-            debug_seg_id=3
-            debug_reflectivity_thrshld=0.22 # gray level thrshold
-            exceeding_areas = (array > debug_reflectivity_thrshld) & (classified_roads_mask == debug_seg_id)
-
-            import src.utils.pc_plot_utils as plt_utils
-
-            # plt.figure(figsize=(8, 8))
-            # plt.imshow(RGB_enchanced, cmap='gray')
-            # plt.colorbar()
-            # plt.imshow(pc_utils.nan_arr(pc_utils.dilate_mask(exceeding_areas,30).astype('float')),
-            #            cmap='Reds', alpha=0.5, label='outliers_pixels')
-            # plt.title(f'Geo-registration problem seg:{debug_seg_id}\nchannel12_trhsold_gl{debug_reflectivity_thrshld}')
-            #
-            plt.figure(figsize=(8, 8))
-            plt.imshow(RGB_enchanced, cmap='gray')
-            plt.colorbar()
-            plt.imshow(pc_utils.nan_arr(segment_mask_obj_removed.astype('float')), cmap=plt_utils.get_lighttraffic_colormap(), alpha=0.5,label='outliers_pixels')
-            plt.title(f'Mask after enhancement:{title_dict}')
-            #
-            #
-            # plt.figure(figsize=(12, 6))
-            # plt.subplot(1, 2, 1)
-            # plt.pcolormesh(X_cropped, Y_cropped, RGB_enchanced)
-            #
-            # plt.subplot(1, 2, 2)
-            # plt.pcolormesh(X_cropped, Y_cropped, Y,cmap='gray')
-            # plt.pcolormesh(X_cropped,Y_cropped,segment_mask_obj_removed,cmap=plt_utils.get_lighttraffic_colormap())
-            # # nonzero_indices = np.nonzero(np.nan_to_num(segment_mask_obj_removed,0))
-            # # nonzero_indices_sparse=nonzero_indices[::10]
-            # # values = segment_mask_obj_removed[nonzero_indices_sparse]
-            # # plt.scatter(
-            # #     X_cropped[nonzero_indices_sparse], Y_cropped[nonzero_indices_sparse],
-            # #     c=values,
-            # #     s=20,    # Marker size
-            # #     marker="o", # Circle marker
-            # #     edgecolor="black",  # Marker edge color
-            # #     linewidths=0.05  # Marker edge width
-            # # )
-            # plt.scatter(
-            #     points_PCI[:,0], points_PCI[:,1],
-            #     c=points_PCI[:,2],
-            #     cmap=plt_utils.get_lighttraffic_colormap(),
-            #     s=50,    # Marker size
-            #     marker="*",  # Circle marker
-            #     edgecolor="black",  # Marker edge color
-            #     linewidths=0.5  # Marker edge width
-            # )
-            stat_from_segments = analyze_pixel_value_ranges(hys_img, segment_mask_obj_removed,[1,2,3])
-            wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
-            plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,title=title_dict | {"divide with gray level channel":3})
-            pc_utils.apply_masks_and_average(hys_img, segment_mask_obj_removed == 3, debug_plots=True,suptitle=title_dict | {"pci=":3})
-
-    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask
 def enhance_mask_grad(grad_threshold,classified_roads_mask,RGB_enchanced,segment_mask_nan):
     # Remove of outliers based on object detection on the RGB image
     Y, _, _ = pc_utils.rgb_to_yuv(RGB_enchanced)
