@@ -21,6 +21,7 @@ plt.ion()
 REPO_ROOT=apa_utils.REPO_ROOT
 print(REPO_ROOT)
 
+
 #%% Generate Database For NN
 def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_filename, excel_path,output_path=None,debug_plots=True):
     ### Get data and prepare it for NN ###
@@ -30,11 +31,27 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     config=io_utils.fill_with_defaults(config['config'])
     lon_mat, lat_mat, VenusImage,rois=apa_utils.data_importer(config, data_dirname, data_filename, metadata_filename)
     print(f'Selected ROIs:{rois}')
+
+    # Create data set for each ROI
     for roi in rois:
         # Main function for doing geo-reference between PCI data and HSI images
         X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,segment_mask,segID_PCI_LUT =\
             apa_utils.process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi)
+        if segID_PCI_LUT is not None:
+            mask_null_fill_value = config["preprocessing"].get("mask_null_fill_value", 0)
+            # Create a mapping from keys to unique integers
+            unique_key_map = {key: idx for idx, key in enumerate(segID_PCI_LUT.keys()) if not isinstance(key, int)}
+            key_to_int_map = {int(key): int(segID_PCI_LUT[key]) for key in segID_PCI_LUT.keys()}
+            # Convert the dictionary to a NumPy array
+            numerical_segID_PCI_LUT = np.array([(int(key), value) for key, value in segID_PCI_LUT.items()])
+            filled_with = np.nan_to_num(segment_mask, nan=mask_null_fill_value)
+            boudningbox_list_labeled_image = pc_utils.process_labeled_image(hys_img, segment_mask, segID_PCI_LUT,
+                                                                            dilation_radius=1)
 
+            replaced_mask = np.vectorize(key_to_int_map.get)(filled_with.astype('int'))
+
+            # replace nan/None/null with some other value
+            segment_mask = np.where(replaced_mask == None, mask_null_fill_value, replaced_mask).astype('int')
 
     stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
     wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])

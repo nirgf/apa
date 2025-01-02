@@ -429,13 +429,14 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
     wt=config["preprocessing"].get("white_threshold", None)
     gyt = config["preprocessing"].get("gray_threshold", None)
     gdt = config["preprocessing"].get("grad_threshold", None)
-    if any(x is None for x in (wt, gyt, gdt)):
+    if all(x is None for x in (wt, gyt,gdt)):
         segment_mask=classified_roads_mask
     else:
         ###
         # Segments mask enhacement based on heuristic of gray color as asphalt indicator and object detection based on sobel gradient magnitude over Y channel (gray-level channel only)
         ###
         title_dict={"wt":wt,"gyt":gyt,"gdt":gdt}
+        print(title_dict)
         # TODO: optimize all the parameters of enhancment
         enhance_morph_operator_type=config["preprocessing"].get("enhance_morph_operator_type", "dilation")
         enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 3)
@@ -444,13 +445,17 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
                 pc_utils.morphological_operator_multiclass_mask(classified_roads_mask,enhance_morph_operator_type, 'square', enhance_morph_operator_size))
         else:
             segment_mask_nan = pc_utils.nan_arr(classified_roads_mask)
-        ## Remove of non-gray parts due to incorrect geo-reference
-        gray_color_enhanced = enhance_gray_based_on_RGB(config, RGB_enchanced, segment_mask_nan)
-        # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(gray_color_enhanced, 'closing', 'square', 1)
-        segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
-        # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
-        segment_mask_nan=enhance_mask_grad(gdt,classified_roads_mask,RGB_enchanced,segment_mask_nan)
+        if gyt>=0:
+            ## Remove of non-gray parts due to incorrect geo-reference
+            gray_color_enhanced = enhance_gray_based_on_RGB(config, RGB_enchanced, segment_mask_nan)
+            # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(gray_color_enhanced, 'closing', 'square', 1)
+            segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
+        if gdt>=0:
+            # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
+            segment_mask_nan=enhance_mask_grad(gdt,classified_roads_mask,RGB_enchanced,segment_mask_nan)
         segment_mask=segment_mask_nan
+
+
     return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask,lut
 
 
