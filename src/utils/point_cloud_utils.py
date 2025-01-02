@@ -1072,7 +1072,10 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
     structure = generate_binary_structure(2, 2)
 
     # Iterate through each unique label
-    for label_id in np.unique(labeled_image):
+    labeles_IDs = np.unique(labeled_image)
+    for idx in tqdm.tqdm(range(len(labeles_IDs)), desc='Iterate through each unique label'):
+        # for label_id in np.unique(labeled_image):
+        label_id=labeles_IDs[idx]
         if label_id <= 0 or label_id==np.nan:  # Skip background
             continue
 
