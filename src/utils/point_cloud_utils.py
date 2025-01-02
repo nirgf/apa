@@ -1084,15 +1084,17 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
         # Connect nearby pixels with binary_dilation
         label_mask = binary_dilation(label_mask, structure=disk(dilation_radius))
         # Separate connected regions
-        connected_components, num_features = label(label_mask, structure=structure)
-
+        if labels_lut is None:  # if there is not lut (is None) between segments labels/IDs and PCI values, treat each unconnceted componnect as a diffrenet segment
+            connected_components, num_features = label(label_mask, structure=structure)
+        else: # if there is a lut, use the whole segment ID even if it is not a connected componnents
+            num_features=1
+            connected_components=label_mask
+            # dilation_radius=0
 
         # Process each connected region
         for region_id in range(1, num_features + 1):
             # Create a binary mask for the current region
             region_mask = (connected_components == region_id)
-
-
             # Dilate the region
             # TODO: add binary_dilation only perpendicular to the mask major axis
             dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
@@ -1108,8 +1110,10 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
             # if there is a LUT so place the labels from the LUT, this add an option to make bounding box per segments ID for example
             if labels_lut is None:
                 label_value=label_id
+                segID='unknown'
             else:
-                label_value = labels_lut[str(int(label_id))]
+                segID=str(int(label_id))
+                label_value = labels_lut[segID]
 
             # Store mask info
             mask_size = np.sum(dilated_mask)
