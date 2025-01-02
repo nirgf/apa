@@ -779,14 +779,14 @@ def morphological_operator(binary_image, operation, structuring_element='disk', 
 
     return result
 
-
+@log_execution_time
 def morphological_operator_multiclass_mask(multiclass_mask, operation='dilation', structuring_element='disk', radius_or_size=3):
     # Initialize an empty mask for the result
     dilated_mask = np.zeros_like(multiclass_mask)
     class_values=np.unique(multiclass_mask[multiclass_mask>0]).astype('int')
     print(f'{__name__}:\n{class_values}\n')
     # Process each class (1, 2, 3; skipping 0 as it represents the background)
-    for class_value in [1, 2, 3]:
+    for class_value in class_values:
         # Create binary mask for the current class
         class_mask = (multiclass_mask == class_value).astype(np.uint8)
         # Dilate the binary mask
