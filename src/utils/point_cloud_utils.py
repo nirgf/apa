@@ -1086,13 +1086,15 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
         # Separate connected regions
         if labels_lut is None:  # if there is not lut (is None) between segments labels/IDs and PCI values, treat each unconnceted componnect as a diffrenet segment
             connected_components, num_features = label(label_mask, structure=structure)
-        else: # if there is a lut, use the whole segment ID even if it is not a connected componnents
+            region_ids=list(range(1, num_features + 1))
+        else: # if there is a lut, use the whole segment ID even if it is not a connected components
             num_features=1
             connected_components=label_mask
+            region_ids=[label_id]
             # dilation_radius=0
 
         # Process each connected region
-        for region_id in range(1, num_features + 1):
+        for region_id in region_ids:
             # Create a binary mask for the current region
             region_mask = (connected_components == region_id)
             # Dilate the region
@@ -1123,10 +1125,9 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
                 'SegID':segID,
                 'bounding_box': (min_row, min_col, max_row, max_col)
             })
-
     # Find the minimum mask size
-    # min_mask_size_id = np.argmin([entry['bounding_box'] for entry in mask_list])
-
+    min_mask_size_id = np.argmin([entry['bounding_box'] for entry in mask_list])
+    print('min_mask_size_id:',min_mask_size_id)
     return mask_list
 
 
