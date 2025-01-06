@@ -841,21 +841,22 @@ def morphological_operator_multiclass_mask(multiclass_mask, operation='dilation'
     # Process each classx
     for class_value in unique_classes:
         # Get sparse coordinates for the current class
-        coords = np.column_stack(np.where(multiclass_mask == class_value))
+        min_row, min_col, max_row, max_col = get_bounding_box(multiclass_mask == class_value)
 
         # Skip empty classes
-        if len(coords) == 0:
+        if not np.any([min_row, min_col, max_row, max_col]):
             continue
 
         # Define a patch around the current pixel
 
-        x_min = np.max(np.append(coords[:,0] - patch_radius, [0], axis=0))
-        x_max=np.min(np.append(coords[:, 0] + patch_radius + 1, [multiclass_mask.shape[0]], axis=0))
-        y_min = np.max(np.append(coords[:,1] - patch_radius, [0], axis=0))
-        y_max=np.min(np.append(coords[:, 1] + patch_radius + 1, [multiclass_mask.shape[1]], axis=0))
+        x_min = np.max([0,min_col-patch_radius], axis=0)
+        x_max=np.min([multiclass_mask.shape[1],max_col+ patch_radius + 1], axis=0)
+        y_min = np.max([0, min_row - patch_radius], axis=0)
+        y_max = np.min([multiclass_mask.shape[0], max_row + patch_radius + 1], axis=0)
+
 
         # Extract the patch
-        patch = multiclass_mask[x_min:x_max, y_min:y_max]
+        patch = multiclass_mask[y_min:y_max,x_min:x_max]
 
         # Create a binary mask for the current class in the patch
         binary_patch = (patch == class_value).astype(np.uint8)
@@ -865,8 +866,8 @@ def morphological_operator_multiclass_mask(multiclass_mask, operation='dilation'
                                                     radius_or_size)
 
         # Update the output mask with the processed patch
-        output_mask[x_min:x_max, y_min:y_max][
-            processed_patch & (output_mask[x_min:x_max, y_min:y_max] == 0)] = class_value
+        output_mask[y_min:y_max,x_min:x_max][
+            processed_patch & (output_mask[y_min:y_max,x_min:x_max] == 0)] = class_value
 
     return output_mask
 
