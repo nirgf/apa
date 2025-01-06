@@ -167,30 +167,33 @@ def create_proximity_mask(xy_points_merge,X_Grid,Y_Grid,threshold=10e-5,*arg):
     return KDTree_mask
 
 @pc_utils.log_execution_time
-def get_mask_from_roads_gdf(npz_filename,data=None):
-    if os.path.exists(npz_filename):
-        print(f"File '{npz_filename}' exists. Loading data...")
-        return load_npz(npz_filename).toarray()
-
-    else:
+def get_mask_from_roads_gdf(npz_filename,crop_rect,data=None):
+    if not os.path.exists(npz_filename):
         if data is None:
             raise ValueError("No data provided to save when the file does not exist.")
-        print(f"File '{npz_filename}' does not exist. Creating data...")
+        else:
+            create_mask_from_roads_gdf(npz_filename,data)
+    else:
+        print(f"File '{npz_filename}' found. Loading data...")
         # %% Get only pixels that intersect with roads
+        coinciding_mask = load_npz(npz_filename).toarray()
+        x_ind_min, y_ind_min, x_ind_max, y_ind_max = crop_rect
+        return coinciding_mask[y_ind_min: y_ind_max, x_ind_min: x_ind_max]
 
-        roi = data["roi"]
-        lon_mat=data["Y_cropped"]
-        lat_mat=data["X_cropped"]
-        xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
-        lat_range = (ymin_cut, ymax_cut)
-        lon_range = (xmin_cut, xmax_cut)
-        coinciding_mask = pc_utils.get_pixels_intersect_with_roads(lon_mat, lat_mat, lon_range,
-                                                                   lat_range)  # assume prefect fit and registration is not needed
-        rowAndColIdx = np.argwhere(coinciding_mask)
-        save_npz(npz_filename, csr_matrix(coinciding_mask))
-        print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
-
-        return coinciding_mask
+@pc_utils.log_execution_time
+def create_mask_from_roads_gdf(npz_filename,data):
+    roi = data["roi"]
+    lon_mat = data["Y_cropped"]
+    lat_mat = data["X_cropped"]
+    xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
+    lat_range = (ymin_cut, ymax_cut)
+    lon_range = (xmin_cut, xmax_cut)
+    coinciding_mask = pc_utils.get_pixels_intersect_with_roads(lon_mat, lat_mat, lon_range,
+                                                               lat_range)  # assume prefect fit and registration is not needed
+    rowAndColIdx = np.argwhere(coinciding_mask)
+    save_npz(npz_filename, csr_matrix(coinciding_mask))
+    print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
+    pass
 
 def fill_segement_pixels_to_curves(GT_xy_PCI,points_PCI,segment_id,X_cropped,Y_cropped):
     x_segment = GT_xy_PCI[0].values
@@ -342,7 +345,7 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
     # Apply the mask to the image
     Z_cropped = RGB_Img
 
-    return X_cropped, Y_cropped, hys_img,Z_cropped, (x_ind_min,y_ind_min)
+    return X_cropped, Y_cropped, hys_img,Z_cropped, (x_ind_min,y_ind_min,x_ind_max,y_ind_max)
 
 def equalize_image(img,fill=0):
     nan_mask = np.isnan(img)
@@ -376,7 +379,8 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
         seg_id = GT_xy_PCI[-1]
         ROI_seg = seg_id[ROI_point_idx]
     #USE only relevant ROI
-    X_cropped, Y_cropped, hys_img,RGB_enchanced, OC_xy = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage) # retun also optical center x,y relative to orignal map
+    X_cropped, Y_cropped, hys_img,RGB_enchanced, cropped_rect = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage) # retun also optical center x,y relative to orignal map
+    OC_xy=cropped_rect[:2]
     print(f'Optical center ROI in xy[column][row]{OC_xy}\n')
 
     # this function merge different lane into one PCI (assumption, may not always be valid)
@@ -395,8 +399,7 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
         npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
 
     npz_filename = os.path.join(REPO_ROOT, npz_filename)
-    coinciding_mask = get_mask_from_roads_gdf(npz_filename,
-                                              {"roi": roi, "X_cropped": X_cropped, "Y_cropped": Y_cropped})
+    coinciding_mask = get_mask_from_roads_gdf(npz_filename,cropped_rect)
 
     lut = None
     if len(ROI_seg)==0: # if there is not segemts ID with the PCI data, use the old method for building mask for roads

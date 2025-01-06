@@ -664,6 +664,7 @@ def laplacian_of_gaussian(image, sigma):
     return laplacian_image
 
 #%% Get only pixels that intersect with roads
+@log_execution_time
 def get_pixels_intersect_with_roads(lon_mat,lat_mat,lon_range,lat_range):
     roads_gdf = GetRoadsCoordinates.get_road_mask(lat_range, lon_range)
     # boolean mask for VENUS Data
