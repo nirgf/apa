@@ -1098,14 +1098,18 @@ def extract_windows_from_mask(image, mask, window_length=16, window_width=3, ove
     return windows, centers
 
 
-def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dilation_radius=2):
+def process_labeled_image(hyperspectral_image, labeled_image, labels_lut=None, dilation_radius=2):
     """
     Process a labeled image to separate connected regions, apply dilation,
     and generate masks per region.
 
     Parameters:
+    - hyperspectral_image: ndarray
+        A 3D hyperspectral image (height x width x bands).
     - labeled_image: ndarray
         A 2D array where each pixel's value represents a label.
+    - labels_lut: dict or None
+        Lookup table mapping segment IDs to labels. If None, uses segment IDs directly.
     - dilation_radius: int
         Radius for the dilation operation.
 
@@ -1114,113 +1118,42 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
         Each entry is a dictionary with keys:
         - 'mask': The binary mask for the region.
         - 'label': The label associated with the mask.
-        - 'size': Number of pixels in the mask.
-    - min_mask_size: int
-        The size of the smallest mask.
+        - 'SegID': Segment ID of the region.
+        - 'bounding_box': Bounding box (min_row, min_col, max_row, max_col).
     """
-    roi_list = []
-    mask_list = []
-
     # Define connectivity for connected component labeling
     structure = generate_binary_structure(2, 2)
+    mask_list = []
 
-    # Iterate through each unique label
-    labeles_IDs = np.unique(labeled_image)
-    for idx in tqdm.tqdm(range(len(labeles_IDs)), desc='Iterate through each unique label'):
-        # for label_id in np.unique(labeled_image):
-        label_id=labeles_IDs[idx]
-        if label_id <= 0 or label_id==np.nan:  # Skip background
+    # Iterate through unique labels
+    unique_labels = np.unique(labeled_image)
+    for label_id in tqdm(unique_labels, desc="Processing labels"):
+        if label_id <= 0 or np.isnan(label_id):  # Skip background or invalid labels
             continue
 
-        # Create a binary mask for the current label
+        # Binary mask for current label
         label_mask = (labeled_image == label_id).astype(np.uint8)
-        # Connect nearby pixels with binary_dilation
-        label_mask = binary_dilation(label_mask, structure=disk(dilation_radius))
-        # Separate connected regions
-        connected_components, num_features = label(label_mask, structure=structure)
-        # TODO: imporve implemenation to be more effeicent
-        if labels_lut is None:  # if there is not lut (is None) between segments labels/IDs and PCI values, treat each unconnceted componnect as a diffrenet segment
-            # Process each connected region
+
+        # Apply dilation
+        label_mask_dilated = binary_dilation(label_mask, structure=disk(dilation_radius))
+
+        # Connected component labeling
+        connected_components, num_features = label(label_mask_dilated, structure=structure)
+
+        # Process regions based on presence of LUT
+        if labels_lut is None:
+            # Treat each connected region as a separate segment
             for region_id in range(1, num_features + 1):
-                # Create a binary mask for the current region
-                region_mask = (connected_components == region_id)
-                # Dilate the region
-                # TODO: add binary_dilation only perpendicular to the mask major axis
-                dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
-                min_row, min_col, max_row, max_col = get_bounding_box(dilated_mask)
-                roi = hyperspectral_image[min_row:max_row, min_col:max_col, :]
-                roi_mask = dilated_mask[min_row:max_row, min_col:max_col]
-                # Apply the mask to the hyperspectral ROI
-                masked_roi = roi * roi_mask[:, :, np.newaxis]
-                if np.all(np.isnan(roi)):
-                    continue
-                roi_list.append(roi)
-
-                # if there is a LUT so place the labels from the LUT, this add an option to make bounding box per segments ID for example
-                if labels_lut is None:
-                    label_value = label_id
-                    segID = 'unknown'
-                else:
-                    segID = str(int(label_id))
-                    label_value = labels_lut[segID]
-
-                # Store mask info
-                mask_size = np.sum(dilated_mask)
-                mask_list.append({
-                    'mask': masked_roi,
-                    'label': label_value,
-                    'SegID': segID,
-                    'bounding_box': (min_row, min_col, max_row, max_col)
-                })
-        else: # if there is a lut, use the whole segment ID even if it is not a connected components
-            mins_rows=[]
-            mins_cols=[]
-            maxs_rows=[]
-            maxs_cols=[]
-            for region_id in range(1, num_features + 1):
-                # Create a binary mask for the current region
-                region_mask = (connected_components == region_id)
-                # Dilate the region
-                # TODO: add binary_dilation only perpendicular to the mask major axis
-                dilated_mask = binary_dilation(region_mask, structure=disk(dilation_radius))
-                min_row, min_col, max_row, max_col = get_bounding_box(dilated_mask)
-                maxs_cols.append(max_col)
-                maxs_rows.append(max_row)
-                mins_cols.append(min_col)
-                mins_rows.append(min_row)
-            try:
-                min_row=min(mins_rows)
-                min_col = min(mins_cols)
-                max_row=max(maxs_rows)
-                max_col = max(maxs_cols)
-            except:
-                continue
-            roi = hyperspectral_image[min_row:max_row, min_col:max_col, :]
-            roi_mask = label_mask[min_row:max_row, min_col:max_col]
-            # Apply the mask to the hyperspectral ROI
-            masked_roi = roi * roi_mask[:, :, np.newaxis]
-            if np.all(np.isnan(roi)):
-                continue
-            roi_list.append(roi)
-
-            # if there is a LUT so place the labels from the LUT, this add an option to make bounding box per segments ID for example
-            if labels_lut is None:
-                label_value = label_id
-                segID = 'unknown'
-            else:
-                segID = str(int(label_id))
-                label_value = labels_lut[segID]
-
-            # Store mask info
-            mask_size = np.sum(dilated_mask)
-            mask_list.append({
-                'mask': masked_roi,
-                'label': label_value,
-                'SegID': segID,
-                'bounding_box': (min_row, min_col, max_row, max_col)
-            })
-
-        # Process each connected region
+                mask_list.extend(
+                    _process_region(hyperspectral_image, connected_components, region_id, label_id, dilation_radius)
+                )
+        else:
+            # Use the whole segment ID
+            mask_list.extend(
+                _process_full_segment(
+                    hyperspectral_image, label_mask, label_id, labels_lut, dilation_radius
+                )
+            )
 
     # Find the minimum mask size
     rois_sizes=[[entry['bounding_box'][2] - entry['bounding_box'][0], entry['bounding_box'][3] - entry['bounding_box'][0]] for
@@ -1229,31 +1162,67 @@ def process_labeled_image(hyperspectral_image,labeled_image,labels_lut=None, dil
     print('min_mask_size_id:',min_mask_size_id)
     return mask_list
 
-
-def get_bounding_box(binary_mask):
+def _process_region(hyperspectral_image, connected_components, region_id, label_id, dilation_radius):
     """
-    Finds the minimum bounding rectangle (MBR) for a binary mask.
-
-    Parameters:
-    - binary_mask: ndarray
-        Input binary mask.
-
-    Returns:
-    - min_rectangle: tuple
-        A tuple containing the dimensions (height, width) of the minimum rectangle.
-    - bounding_box: tuple
-        A tuple (min_row, min_col, max_row, max_col) defining the bounding box.
+    Process a single connected region in the labeled image.
     """
-    # Find properties of the mask
-    props = regionprops(binary_mask.astype(int))
-    bounding_box = props[0].bbox  # (min_row, min_col, max_row, max_col)
-    min_row, min_col, max_row, max_col = bounding_box
-    center_y = (min_row + max_row) // 2
-    center_x = (min_col + max_col) // 2
-    # Compute minimum rectangle size
-    height = max_row - min_row
-    width = max_col - min_col
-    return bounding_box
+    # Binary mask for the region
+    region_mask = (connected_components == region_id)
+
+    # Get bounding box
+    min_row, min_col, max_row, max_col = get_bounding_box(region_mask)
+
+    # Extract ROI and mask
+    roi = hyperspectral_image[min_row:max_row, min_col:max_col, :]
+    region_mask_cropped = region_mask[min_row:max_row, min_col:max_col]
+    masked_roi = roi * region_mask_cropped[:, :, np.newaxis]
+
+    if np.all(np.isnan(roi)):
+        return []
+
+    return [{
+        'mask': masked_roi,
+        'label': label_id,
+        'SegID': 'unknown',
+        'bounding_box': (min_row, min_col, max_row, max_col)
+    }]
+
+def _process_full_segment(hyperspectral_image, label_mask, label_id, labels_lut, dilation_radius):
+    """
+    Process a full segment in the labeled image.
+    """
+    # Apply dilation to the label mask
+    label_mask_dilated = binary_dilation(label_mask, structure=disk(dilation_radius))
+
+    # Get bounding box
+    min_row, min_col, max_row, max_col = get_bounding_box(label_mask_dilated)
+
+    # Extract ROI and mask
+    roi = hyperspectral_image[min_row:max_row, min_col:max_col, :]
+    label_mask_cropped = label_mask[min_row:max_row, min_col:max_col]
+    masked_roi = roi * label_mask_cropped[:, :, np.newaxis]
+
+    if np.all(np.isnan(roi)):
+        return []
+
+    segID = str(int(label_id))
+    label_value = labels_lut[segID] if segID in labels_lut else 'unknown'
+
+    return [{
+        'mask': masked_roi,
+        'label': label_value,
+        'SegID': segID,
+        'bounding_box': (min_row, min_col, max_row, max_col)
+    }]
+
+def get_bounding_box(mask):
+    """
+    Calculate the bounding box of a binary mask.
+    """
+    rows, cols = np.where(mask)
+    if rows.size == 0 or cols.size == 0:
+        return 0, 0, 0, 0
+    return rows.min(), cols.min(), rows.max() + 1, cols.max() + 1
 
 
 def plot_centered_window(image, center_xy, half_window_size):
