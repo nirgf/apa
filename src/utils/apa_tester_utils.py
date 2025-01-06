@@ -192,6 +192,12 @@ def create_mask_from_roads_gdf(npz_filename,data):
                                                                lat_range)  # assume prefect fit and registration is not needed
     rowAndColIdx = np.argwhere(coinciding_mask)
     save_npz(npz_filename, csr_matrix(coinciding_mask))
+    # save metadata file
+    metadata = {"description": "Sparse matrix of roads in _", "author": "apa", "version": 1.0, "roi":roi}
+    npz_file_path = Path(npz_filename)
+    metda_filename=npz_file_path.with_suffix(".json")
+    with open(metda_filename, "w") as f:
+        json.dump(metadata, f)
     print(f"Saved compressed binary mask of OpenStreetMap roads into '{npz_filename}'.")
     pass
 
