@@ -821,23 +821,54 @@ def morphological_operator(binary_image, operation, structuring_element='disk', 
 
 @log_execution_time
 def morphological_operator_multiclass_mask(multiclass_mask, operation='dilation', structuring_element='disk', radius_or_size=3):
-    # Initialize an empty mask for the result
-    dilated_mask = np.zeros_like(multiclass_mask)
-    class_values=np.unique(multiclass_mask[multiclass_mask>0]).astype('int')
-    print(f'{__name__}:\n{class_values}\n')
-    # Process each class (1, 2, 3; skipping 0 as it represents the background)
-    for class_value in class_values:
-        # Create binary mask for the current class
-        class_mask = (multiclass_mask == class_value).astype(np.uint8)
-        # Dilate the binary mask
-        dilated_class_mask=morphological_operator(class_mask, operation,
-                                        structuring_element,
-                                        radius_or_size)
-        # Update the dilated mask with the current class, resolving overlaps
-        dilated_mask[dilated_class_mask == 1] = class_value
+    """
+    Perform a morphological operation on a sparse multiclass mask using patch-based processing.
+    Args:
+        multiclass_mask (np.ndarray): Input mask with multiple class values (sparse).
+    Returns:
+        np.ndarray: Output mask after morphological operation.
+    """
+    # Get unique class values (skip 0, background)
+    unique_classes = np.unique(multiclass_mask[multiclass_mask > 0])
+    print(f"Processing {len(unique_classes)} classes...")
 
-    return dilated_mask
+    # Prepare the output mask
+    output_mask = np.zeros_like(multiclass_mask, dtype=multiclass_mask.dtype)
 
+    # Patch size based on structuring element
+    patch_radius = radius_or_size+3
+
+    # Process each classx
+    for class_value in unique_classes:
+        # Get sparse coordinates for the current class
+        coords = np.column_stack(np.where(multiclass_mask == class_value))
+
+        # Skip empty classes
+        if len(coords) == 0:
+            continue
+
+        # Define a patch around the current pixel
+
+        x_min = np.max(np.append(coords[:,0] - patch_radius, [0], axis=0))
+        x_max=np.min(np.append(coords[:, 0] + patch_radius + 1, [multiclass_mask.shape[0]], axis=0))
+        y_min = np.max(np.append(coords[:,1] - patch_radius, [0], axis=0))
+        y_max=np.min(np.append(coords[:, 1] + patch_radius + 1, [multiclass_mask.shape[1]], axis=0))
+
+        # Extract the patch
+        patch = multiclass_mask[x_min:x_max, y_min:y_max]
+
+        # Create a binary mask for the current class in the patch
+        binary_patch = (patch == class_value).astype(np.uint8)
+
+        processed_patch = morphological_operator(binary_patch, operation,
+                                                    structuring_element,
+                                                    radius_or_size)
+
+        # Update the output mask with the processed patch
+        output_mask[x_min:x_max, y_min:y_max][
+            processed_patch & (output_mask[x_min:x_max, y_min:y_max] == 0)] = class_value
+
+    return output_mask
 
 
 
