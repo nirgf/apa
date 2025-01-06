@@ -8,7 +8,7 @@ config:
     bands_to_use: [10, 20, 30, 40, 50]              # Selected spectral bands for processing
     spatial_resolution: 1.0                         # Resolution of the image in meters
     label_file: "data/labels.csv"                   # Path to labels for supervised learning
-#    rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
+    rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
 
   preprocessing:
     normalization: true                             # Whether to normalize pixel values
@@ -21,10 +21,10 @@ config:
     georeferencing:                                 # Georeferencing to apply
       merge_threshold: [0.05]                       # Threshold for merging
       merge_method: "mean_min"                      # Method for merging segments
-#      osx_map_mask_path:                            # Relative path for OpenStreetMap roads mask
-#        "data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz"
-#      dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
-#        "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
+      osx_map_mask_path:                            # Relative path for OpenStreetMap roads mask
+       "data/Detroit/masks_OpenStreetMap/Detroit_OpenStreets_roads_mask.npz"
+      dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
+       "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
   
   augmentations:                                  # Augmentations to apply
     rotation: true                                # Enable random rotations
