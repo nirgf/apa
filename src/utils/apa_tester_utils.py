@@ -168,12 +168,19 @@ def create_proximity_mask(xy_points_merge,X_Grid,Y_Grid,threshold=10e-5,*arg):
 
 @pc_utils.log_execution_time
 def get_mask_from_roads_gdf(npz_filename,crop_rect,data=None):
-    if not os.path.exists(npz_filename):
+    npz_file_path = Path(npz_filename)
+    metda_filename=npz_file_path.with_suffix(".json")
+    if not (os.path.exists(npz_filename) and os.path.exists(metda_filename)):
         if data is None:
             raise ValueError("No data provided to save when the file does not exist.")
         else:
             create_mask_from_roads_gdf(npz_filename,data)
     else:
+        with open(metda_filename, 'r') as f:
+            metadata_dict = json.load(f)
+        is_roi_within_bounds=pc_utils.is_roi_within_bounds(data["roi"],metadata_dict["roi"])
+        if not is_roi_within_bounds:
+            raise ValueError(f"Exisiting ROI:{metadata_dict["roi"]}  of GDF roads is not bounded by the requested: {data["roi"]}")
         print(f"File '{npz_filename}' found. Loading data...")
         # %% Get only pixels that intersect with roads
         coinciding_mask = load_npz(npz_filename).toarray()
@@ -405,7 +412,7 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
         npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
 
     npz_filename = os.path.join(REPO_ROOT, npz_filename)
-    coinciding_mask = get_mask_from_roads_gdf(npz_filename,cropped_rect)
+    coinciding_mask = get_mask_from_roads_gdf(npz_filename,cropped_rect,{"roi":roi})
 
     lut = None
     if len(ROI_seg)==0: # if there is not segemts ID with the PCI data, use the old method for building mask for roads

@@ -173,6 +173,27 @@ def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_c
     coinciding_true_index = tuple(nearest_indices[:, XY_ind[0], XY_ind[1]])
     return coinciding_true_index
 
+def is_roi_within_bounds(small_roi, large_roi):
+    """
+    Check if the four corners of a smaller ROI are within a larger ROI.
+    """
+    # Unpack coordinates
+    x_min_small,x_max_small, y_min_small, y_max_small = small_roi
+    x_min_large,x_max_large, y_min_large, y_max_large = large_roi
+    # Define the four corners of the smaller ROI
+    corners = [
+        (x_min_small, y_min_small),  # Top-left
+        (x_max_small, y_min_small),  # Top-right
+        (x_max_small, y_max_small),  # Bottom-right
+        (x_min_small, y_max_small)   # Bottom-left
+    ]
+    # Check if all corners are within the bounds of the larger ROI
+    for x, y in corners:
+        if not (x_min_large <= x <= x_max_large and y_min_large <= y <= y_max_large):
+            print('Misbound')
+            return False
+    return True
+
 
 @log_execution_time
 def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
