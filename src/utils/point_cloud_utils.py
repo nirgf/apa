@@ -1128,7 +1128,7 @@ def process_labeled_image(hyperspectral_image, labeled_image, labels_lut=None, d
 
     # Iterate through unique labels
     unique_labels = np.unique(labeled_image)
-    for label_id in tqdm(unique_labels, desc="Processing labels"):
+    for label_id in tqdm.tqdm(unique_labels, desc="Processing labels"):
         if label_id <= 0 or np.isnan(label_id):  # Skip background or invalid labels
             continue
 
