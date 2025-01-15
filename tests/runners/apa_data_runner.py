@@ -41,7 +41,12 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
         X_cropped=pdp.X_cropped
         Y_cropped=pdp.Y_cropped
         hys_img=pdp.HSI
-        coinciding_mask,segment_mask,segID_PCI_LUT = pdp.create_roads_segID_mask()
+        pdp.create_roads_segID_mask()
+        coinciding_mask = pdp.all_roads_mask
+        segID_PCI_LUT = pdp.segID_PCI_LUT
+        # segment_mask=pdp.create_segment_mask()
+        boudningbox_list_labeled_image_enh=pdp.process_labeled_image()
+
         if segID_PCI_LUT is not None:
             mask_null_fill_value = config["preprocessing"].get("mask_null_fill_value", 0)
             # Create a mapping from keys to unique integers

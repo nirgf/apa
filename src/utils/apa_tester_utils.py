@@ -20,6 +20,8 @@ from scipy.spatial import cKDTree
 from skimage.draw import line
 import matplotlib.pyplot as plt
 import matplotlib
+from joblib import Parallel, delayed
+import tqdm
 
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
@@ -212,11 +214,146 @@ class PavementDataProcessor:
 
             classified_roads_mask = merge_points_dijkstra[y_ind_min: y_ind_max, x_ind_min: x_ind_max]
 
+        self.all_roads_mask=coinciding_mask
+        self.segID_PCI_LUT = lut
+        self.raw_seg_id_mask=classified_roads_mask
 
 
-        segment_mask=roads_mask.enhance_roads_mask(classified_roads_mask,self.RGB)
+    def create_segment_mask(self):
+        self.segID_mask = MaskGenerator.enhance_roads_mask(self.config,self.raw_seg_id_mask, self.RGB)
 
-        return coinciding_mask,segment_mask, lut
+
+
+    def process_labeled_image(self):
+        labeled_image=self.raw_seg_id_mask
+        labels_lut=self.segID_PCI_LUT
+        """
+        Process a labeled image to separate connected regions, apply dilation,
+        and generate masks per region.
+
+        Parameters:
+        - hyperspectral_image: ndarray
+            A 3D hyperspectral image (height x width x bands).
+        - labeled_image: ndarray
+            A 2D array where each pixel's value represents a label.
+        - labels_lut: dict or None
+            Lookup table mapping segment IDs to labels. If None, uses segment IDs directly.
+        - dilation_radius: int
+            Radius for the dilation operation.
+
+        Returns:
+        - mask_list: list of dict
+            Each entry is a dictionary with keys:
+            - 'mask': The binary mask for the region.
+            - 'label': The label associated with the mask.
+            - 'SegID': Segment ID of the region.
+            - 'bounding_box': Bounding box (min_row, min_col, max_row, max_col).
+        """
+        # Define connectivity for connected component labeling
+        structure = pc_utils.generate_binary_structure(2, 2)
+
+        mask_list = []
+
+        # Iterate through unique labels
+        unique_labels = np.unique(labeled_image)
+        for label_id in tqdm.tqdm(unique_labels, desc="Processing labels"):
+            if label_id <= 0 or np.isnan(label_id):  # Skip background or invalid labels
+                continue
+
+            # Binary mask for current label
+            label_mask = (labeled_image == label_id).astype(np.uint8)
+
+
+            # Apply dilation
+            label_mask_dilated = pc_utils.binary_dilation(label_mask, structure=pc_utils.disk(1))
+
+            # Get bounding box
+            bounding_box = pc_utils.get_bounding_box(label_mask_dilated)
+
+            # Connected component labeling
+            connected_components, num_features = pc_utils.label(label_mask_dilated, structure=structure)
+
+            # Process regions based on presence of LUT
+            if labels_lut is None:
+                # Treat each connected region as a separate segment
+                for region_id in range(1, num_features + 1):
+                    mask_list.extend(
+                        self._process_region(connected_components, region_id, label_id)
+                    )
+            else:
+                # Use the whole segment ID
+                mask_list.extend(
+                    self._process_full_segment(label_mask,label_id,
+                    bounding_box)
+                )
+
+        # Find the minimum mask size
+        rois_sizes = [
+            [entry['bounding_box'][2] - entry['bounding_box'][0], entry['bounding_box'][3] - entry['bounding_box'][0]]
+            for
+            entry in mask_list]
+        min_mask_size_id = np.argmin(rois_sizes)
+        print('min_mask_size_id:', min_mask_size_id)
+        return mask_list
+
+    def _process_region(self, connected_components, region_id, label_id):
+        """
+        Process a single connected region in the labeled image.
+        """
+        if True:
+            raise ValueError('Not supported')
+        # Binary mask for the region
+        region_mask = (connected_components == region_id)
+
+        # Get bounding box
+        min_row, min_col, max_row, max_col = pc_utils.get_bounding_box(region_mask)
+
+        # Extract ROI and mask
+        roi = self.HSI[min_row:max_row, min_col:max_col, :]
+        region_mask_cropped = region_mask[min_row:max_row, min_col:max_col]
+        masked_roi = roi * region_mask_cropped[:, :, np.newaxis]
+
+        if np.all(np.isnan(roi)):
+            return []
+
+        return [{
+            'mask': masked_roi,
+            'label': label_id,
+            'SegID': 'unknown',
+            'bounding_box': (min_row, min_col, max_row, max_col)
+        }]
+
+    def _process_full_segment(self,label_mask,label_id,bounding_box):
+        """
+        Process a full segment in the labeled image.
+        """
+        min_row, min_col, max_row, max_col = bounding_box
+        config=self.config
+        # config["preprocessing"]["white_threshold"] =0.93
+        # config["preprocessing"]["gray_threshold"]=0.12
+        enhanced_segment_mask = MaskGenerator.enhance_roads_mask(config, self.raw_seg_id_mask[min_row:max_row,min_col:max_col], self.RGB[min_row:max_row,min_col:max_col])
+        if self.raw_seg_id_mask[min_row:max_row,min_col:max_col].shape != enhanced_segment_mask.shape:
+            print(label_id)
+        # min_row, min_col, max_row, max_col = pc_utils.get_bounding_box(enhanced_segment_mask)
+
+        # Extract ROI and mask
+        roi = self.HSI[min_row:max_row, min_col:max_col, :]
+        # label_mask_cropped = enhanced_segment_mask[min_row:max_row, min_col:max_col]
+        masked_roi = roi * enhanced_segment_mask[:, :, np.newaxis]
+
+        if np.all(np.isnan(roi)):
+            return []
+
+        segID = str(int(label_id))
+        label_value = self.segID_PCI_LUT[segID] if segID in self.segID_PCI_LUT else 'unknown'
+
+        return [{
+            'mask': masked_roi,
+            'label': label_value,
+            'SegID': segID,
+            'bounding_box': (min_row, min_col, max_row, max_col)
+        }]
+
 
     @staticmethod
     def create_segments_mask(hys_img, segment_mask, masks_tags_bounds):
@@ -269,6 +406,8 @@ class PavementDataProcessor:
             raise ValueError("Mismatch between the number of mask segments and tags.")
 
         return mask_all_channel_values, masks_tags_numerical
+
+
 
 
 class ImageHandler:
@@ -495,7 +634,8 @@ class MaskGenerator:
                                                                              20))
         ###
 
-    def enhance_mask_grad(self,grad_threshold, classified_roads_mask, RGB_enchanced, segment_mask_nan):
+    @staticmethod
+    def enhance_mask_grad(grad_threshold, classified_roads_mask, RGB_enchanced, segment_mask_nan):
         # Remove of outliers based on object detection on the RGB image
         Y, _, _ = pc_utils.rgb_to_yuv(RGB_enchanced)
         # do sobel over mean filter luminace visible image
@@ -512,7 +652,8 @@ class MaskGenerator:
             f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100 * (1 - np.sum(~np.isnan(segment_mask_obj_removed)) / np.sum(~np.isnan(segment_mask_nan))):.2f}% of pixels from original mask\n\n')
         return segment_mask_obj_removed
 
-    def enhance_gray_based_on_RGB(self, RGB_enchanced, dilated_mask):
+    @staticmethod
+    def enhance_gray_based_on_RGB(config,RGB_enchanced, dilated_mask):
         """
         A function that takes mask of roads and refine it only where there is a gray color"
         Args:
@@ -520,7 +661,7 @@ class MaskGenerator:
             RGB_enchanced: an RGB 3 channel image post histogram equalization
             dilated_mask:
         """
-        gray_threshold = self.config["preprocessing"].get("gray_threshold", 0.1)
+        gray_threshold = config["preprocessing"].get("gray_threshold", 0.1)
         # Calculate differences between RGB channels
         diff_rg = np.abs(RGB_enchanced[:, :, 0] - RGB_enchanced[:, :, 1])  # Red vs Green
         diff_rb = np.abs(RGB_enchanced[:, :, 0] - RGB_enchanced[:, :, 2])  # Red vs Blue
@@ -529,17 +670,19 @@ class MaskGenerator:
         gray_color_mask = (diff_rg <= gray_threshold) & (diff_rb <= gray_threshold) & (diff_gb <= gray_threshold)
         intensity = np.mean(RGB_enchanced, axis=2)
         # Identify gray but not white regions
-        white_threshold = self.config["preprocessing"].get("white_threshold", 0.82)
+        white_threshold = config["preprocessing"].get("white_threshold", 0.93)
         not_white_mask = intensity < white_threshold
         gray_but_not_white_mask = gray_color_mask & not_white_mask
         # Combine gray regions with the input mask
         combined_mask = np.where(dilated_mask.astype(bool) & gray_but_not_white_mask, dilated_mask, 0)
         return combined_mask
 
-    def enhance_roads_mask(self, classified_roads_mask,RGB_enchanced):
-        wt = self.config["preprocessing"].get("white_threshold", None)
-        gyt = self.config["preprocessing"].get("gray_threshold", None)
-        gdt = self.config["preprocessing"].get("grad_threshold", None)
+
+    @staticmethod
+    def enhance_roads_mask(config, classified_roads_mask,RGB_enchanced):
+        wt = config["preprocessing"].get("white_threshold", None)
+        gyt = config["preprocessing"].get("gray_threshold", None)
+        gdt = config["preprocessing"].get("grad_threshold", None)
         if all(x is None for x in (wt, gyt, gdt)):
             segment_mask = classified_roads_mask
         else:
@@ -549,8 +692,8 @@ class MaskGenerator:
             title_dict = {"wt": wt, "gyt": gyt, "gdt": gdt}
             print(title_dict)
             # TODO: optimize all the parameters of enhancment
-            enhance_morph_operator_type = self.config["preprocessing"].get("enhance_morph_operator_type", "dilation")
-            enhance_morph_operator_size = self.config["preprocessing"].get("enhance_morph_operator_size", 3)
+            enhance_morph_operator_type = config["preprocessing"].get("enhance_morph_operator_type", "dilation")
+            enhance_morph_operator_size = config["preprocessing"].get("enhance_morph_operator_size", 3)
             if enhance_morph_operator_type is not None and enhance_morph_operator_size > 0:
                 segment_mask_nan = pc_utils.nan_arr(
                     pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, enhance_morph_operator_type,
@@ -559,18 +702,15 @@ class MaskGenerator:
                 segment_mask_nan = pc_utils.nan_arr(classified_roads_mask)
             if gyt >= 0:
                 ## Remove of non-gray parts due to incorrect geo-reference
-                gray_color_enhanced = self.enhance_gray_based_on_RGB(RGB_enchanced, segment_mask_nan)
+                gray_color_enhanced = MaskGenerator.enhance_gray_based_on_RGB(config,RGB_enchanced, segment_mask_nan)
                 # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(gray_color_enhanced, 'closing', 'square', 1)
                 segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
             if gdt >= 0:
                 # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
-                segment_mask_nan = self.enhance_mask_grad(gdt, classified_roads_mask, RGB_enchanced, segment_mask_nan)
+                segment_mask_nan = MaskGenerator.enhance_mask_grad(gdt, classified_roads_mask, RGB_enchanced, segment_mask_nan)
             segment_mask = segment_mask_nan
 
         return segment_mask
-
-    def create_bounding_boxes_per_segID(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
-        pass
 
 
 
