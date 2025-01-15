@@ -439,8 +439,8 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
         merge_points_dijkstra,lut = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
                                                                points_PCI, ROI_seg)
 
-
-        classified_roads_mask = merge_points_dijkstra
+        y_ind_min,y_ind_max, x_ind_min,x_ind_max = cropped_rect
+        classified_roads_mask = merge_points_dijkstra[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
 
     wt=config["preprocessing"].get("white_threshold", None)
     gyt = config["preprocessing"].get("gray_threshold", None)
