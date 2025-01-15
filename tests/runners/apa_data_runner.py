@@ -2,6 +2,7 @@ import os.path
 import numpy as np
 from src.CONST import bands_dict
 import src.utils.apa_tester_utils as apa_utils
+from src.utils.apa_tester_utils import PavementDataProcessor
 import src.utils.PrepareDataForNN_module as pp
 from src.utils import ReadDetroitDataModule
 import matplotlib.pyplot as plt
@@ -29,14 +30,18 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
     # Read config and merge it with default values of configs if some keys are missing
     config = io_utils.read_yaml_config(config_path)
     config=io_utils.fill_with_defaults(config['config'])
-    lon_mat, lat_mat, VenusImage,rois=apa_utils.data_importer(config, data_dirname, data_filename, metadata_filename)
+    lon_mat, lat_mat, VenusImage,rois=PavementDataProcessor.image_data_loader(config, data_dirname, data_filename, metadata_filename)
     print(f'Selected ROIs:{rois}')
 
     # Create data set for each ROI
     for roi in rois:
         # Main function for doing geo-reference between PCI data and HSI images
-        X_cropped,Y_cropped,hys_img,points_merge_PCI,coinciding_mask,segment_mask,segID_PCI_LUT =\
-            apa_utils.process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi)
+        pdp=PavementDataProcessor(config)
+        pdp.import_data(lon_mat, lat_mat, VenusImage, excel_path, roi)
+        X_cropped=pdp.X_cropped
+        Y_cropped=pdp.Y_cropped
+        hys_img=pdp.HSI
+        coinciding_mask,segment_mask,segID_PCI_LUT = pdp.create_roads_segID_mask()
         if segID_PCI_LUT is not None:
             mask_null_fill_value = config["preprocessing"].get("mask_null_fill_value", 0)
             # Create a mapping from keys to unique integers
@@ -54,7 +59,25 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
         stat_from_segments = apa_utils.analyze_pixel_value_ranges(hys_img, segment_mask)
         wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
         if debug_plots:
+            plt.figure()
             plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,'mean')
+            plt.suptitle(Path(data_filename).stem[:-10])
+
+            plt.figure(figsize=(8, 6))
+
+            # Plot the original pcolormesh grid
+            plt.pcolormesh(X_cropped, Y_cropped, hys_img[:,:,-1], cmap='gray', shading='auto')
+            # plt.colorbar(label="Z_cropped values")
+
+            # Overlay the mask using pcolormesh
+            plt.pcolormesh(X_cropped, Y_cropped, pc_utils.nan_arr(segment_mask.astype('float')), cmap=cmap_me, shading='auto', alpha=0.6)
+            plt.colorbar(label="Mask values")
+
+            plt.title("Mask Overlay on Grid")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+            plt.show()
+
         binary_seg_mask = (segment_mask > 0)*1
         road_hys_filter = np.reshape(binary_seg_mask, list(np.shape(segment_mask)) + [1])
 
@@ -107,13 +130,22 @@ if __name__ == "__main__":
 
     #Detroit
     config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
-    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
-    data_dirname = '/root/APA/Data/Detroit/Detroit_20230710'
 
-    data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+    # data_dirname = '/root/APA/Data/'
+    #/
+    # data_dirname = '/Users/nircko/DATA/apa/Detroit_20230710'
+    # data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+
+
+    # data_dirname = '/Users/nircko/Downloads/VENUS-XS_20240219-154042-000_L2A_DETROIT_C_V3-1'
+    # data_filename='VENUS-XS_20240219-154042-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
+
+    data_dirname = '/Users/nircko/Downloads/VENUS-XS_20230401-000000-000_L3A_DETROIT_C_V2-3'
+    data_filename = 'VENUS-XS_20230401-000000-000_L3A_DETROIT_C_V2-3_FRC_B1.tif'
+
     excel_path = os.path.join(REPO_ROOT, 'data/Detroit/Pavement_Condition.csv')
 
-    # #Kiryat Ata
+    # # #Kiryat Ata
     # config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_kiryat_ata.yaml')
     # parent_path = '/Users/nircko/DATA/apa'
     # data_dirname = os.path.join(parent_path, 'venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531/')
