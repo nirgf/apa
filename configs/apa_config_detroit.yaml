@@ -9,7 +9,9 @@ config:
     spatial_resolution: 1.0                         # Resolution of the image in meters
     label_file: "data/labels.csv"                   # Path to labels for supervised learning
     rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
-
+    hsp_path: "tests/runners/BoudingBoxList-83_-83_42_42.h5" # Path to HSP file
+    PCI_path: "tests/runners/BoudingBoxLabel-83_-83_42_42.h5" # Path to PCI file
+  
   preprocessing:
     normalization: true                             # Whether to normalize pixel values
     normalization_type: "min-max"                   # Type of normalization (min-max, z-score)
@@ -31,8 +33,16 @@ config:
     flipping: true                                # Enable random horizontal/vertical flips
     cropping: true                                # Enable random cropping
 
+  net_preprocess:
+    phase_1:
+      aug_depth: 600                               # Depth of augmentations for phase 1
+      num_augmented_samples: 16                 # Number of augmented samples for phase 1
+    phase_2:
+      aug_depth: 50                                # Depth of augmentations for phase 2
+      num_augmented_samples: 100                  # Number of augmented samples for phase 2
+  
   cnn_model:
-    architecture: "3D-CNN"                        # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
+    architecture: "unet_categorical"              # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
     input_shape: (128, 128, 12)                   # Shape of input tensor (height, width, bands)
     num_classes: 4                                # Number of target classes for classification
     base_filters: 32                              # Number of filters in the first layer
@@ -40,20 +50,56 @@ config:
     activation_function: "relu"                   # Activation function to use
     optimizer: "adam"                             # Optimizer for training
     loss_function: "categorical_crossentropy"     # Loss function for training
-    crop_size: 128                                # Size of the cropped patches (crop_size, crop_size)
     overlap : 0.2
-
+    add_noise: true                               # Whether to add noise during augmentation
   training:
     batch_size: 16                                # Batch size for training
     epochs: 100                                    # Number of epochs to train the model
     learning_rate_ini: 0.001                      # Initial learning rate
     learning_rate_ref: 0.5e-4                     # Learning rate in the refinment phase
     learning_rate_focal: 1e-3                     # Learning rate after switching to focal loss
-    learning_rate_schedule:                       # Learning rate schedule
-      type: "exponential_decay"                   # Type of schedule (e.g., step_decay, exponential_decay)
-      decay_rate: 0.95                            # Decay rate for the learning rate
-      decay_steps: 10                             # Number of steps before applying decay
-    validation_split: 0.2                         # Fraction of the dataset to use for validation
+    reduce_lr:                                    # Reduce learning rate on plateau
+      monitor: "val_accuracy"                     # Metric to monitor
+      factor: 0.1                                 # Reduce learning rate by this factor
+      patience: 10                                # Number of epochs with no improvement before reducing
+      min_lr: 1e-6                                # Minimum learning rate
+      
+  training_phases:
+    phase_1:
+      use_focal: false
+      learning_rate: 1e-4
+      use_weighted: false
+      batch_size: 16
+      epochs: 10
+    phase_2:
+      use_focal: false
+      learning_rate: 1e-3
+      use_weighted: true
+      class_weights: [0.001, 1, 1, 1]
+      batch_size: 16
+      epochs: 100
+    phase_3:
+        use_focal: false
+        learning_rate: 5e-4
+        use_weighted: true
+        class_weights: [0.001, 1, 1, 1]
+        add_extra_dropout: false
+        batch_size: 8
+        epochs: 100
+    phase_4:
+        use_focal: true
+        learning_rate: 1e-4
+        use_weighted: true
+        class_weights: [0.001, 1, 1, 1]
+        add_extra_dropout: false
+        batch_size: 8
+        epochs: 100
+      
+  reduce_lr:                                    # Reduce learning rate on plateau
+    monitor: "val_accuracy"                     # Metric to monitor
+    factor: 0.1                                 # Reduce learning rate by this factor
+    patience: 10                                # Number of epochs with no improvement before reducing
+    min_lr: 1e-6                                # Minimum learning rate
 
   output:
     save_model: true                              # Whether to save the trained model

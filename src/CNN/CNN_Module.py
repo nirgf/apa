@@ -18,21 +18,75 @@ from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, TensorBoard
-import tensorflow_addons as tfa
+# import tensorflow_addons as tfa
 from keras import backend as keras
 import src.CNN.DataAugmentation_Module as da
 import matplotlib.pyplot as plt
 import src.utils.io_utils as io_utils
+import Costum_loss_module as cl
+from tensorflow.keras.callbacks import ReduceLROnPlateau
 
 
 #%% Define Net
+def create_entry_heads(input_tensor, input_size):
+    """
+    Creates multiple entry heads that process specific input channels,
+    apply trainable weights, and merge the results to reconstruct the original shape.
+    
+    Parameters:
+        input_tensor (Tensor): Input tensor of shape (n, 128, 128, 12).
+    
+    Returns:
+        Tensor: Processed tensor of shape (n, 128, 128, 12).
+    """
+    channel_splits = input_size[-1]  # Total number of channels
+    heads = []
+    nor_outs = []
 
-def unet_categorical(input_size,  n_classes , use_focal = False, learning_rate = 1e-3):
+    for i in range(channel_splits//2):
+        # Extract the i-th channel
+        single_channel = Lambda(lambda x: x[..., 2*i:2*i+1])(input_tensor)
+
+        # Shallow CNN layer to process the channel
+        # processed_channel = Conv2D(
+        #     8, 3, activation='relu', padding='same', kernel_initializer='he_normal'
+        # )(single_channel)
+
+        # Apply a trainable weight (scalar) to the channel
+        weight = tf.Variable(1.0, trainable=True, name=f"weight_{i}")
+        weighted_channel = Lambda(lambda x: x * weight)(single_channel)
+
+        # Append to the heads list
+        heads.append(weighted_channel)
+
+        # Merge all processed channels and concatenate with the original input
+        merged_output = Add()(heads)
+        norm_inputs = BatchNormalization()(merged_output)
+        nor_outs.append(norm_inputs)
+    
+    concat_output = Concatenate()(nor_outs)
+    # Ensure the output shape matches the input
+    # merged_output = Conv2D(
+    #     6, 1, activation=None, padding='same', kernel_initializer='he_normal'
+    # )(merged_output)
+
+    return concat_output
+
+def unet_categorical(input_size,  n_classes , use_focal = False, \
+                     learning_rate = 1e-3, add_extra_dropout = True,\
+                         use_weighted=False, class_weights=None):
+    
+    # TODO : Add net architecture in the config. will be done in the fitire
+
     inputs = Input(input_size)
+    
+    # Apply the entry heads
+    processed_inputs = create_entry_heads(inputs, input_size)
+    
     # norm_inputs = BatchNormalization()(inputs)
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
                                                kernel_initializer = 'he_normal'
-                                               )(inputs)
+                                               )(processed_inputs)
     
     conv1 = Conv2D(64, 3, activation = 'relu', padding = 'same', 
                                                kernel_initializer = 'he_normal'
@@ -134,29 +188,73 @@ def unet_categorical(input_size,  n_classes , use_focal = False, learning_rate =
                                                kernel_initializer = 'he_normal'
                                                )(merge9)
     
-    conv9 = Conv2D(64, 3, activation = 'relu', padding = 'same',
-                                               kernel_initializer = 'he_normal'
-                                               )(conv9)
     
-    conv9 = Conv2D(2, 3, activation = 'relu', padding = 'same',
-                                              kernel_initializer = 'he_normal'
-                                              )(conv9)
-    
+    if add_extra_dropout:
+        drop9 = Dropout(0.9)(conv9)
+
+        conv10 = Conv2D(64, 3, activation = 'relu', padding = 'same',
+                                                   kernel_initializer = 'he_normal'
+                                                   )(drop9) # (conv9) #(drop9)
+        drop10 = Dropout(0.9)(conv10)
+        
+        conv11 = Conv2D(2, 3, activation = 'relu', padding = 'same',
+                                                  kernel_initializer = 'he_normal'
+                                                  )(drop10) #(conv10) #(drop10)
+
+    else:
+        conv10 = Conv2D(64, 3, activation = 'relu', padding = 'same',
+                                                   kernel_initializer = 'he_normal'
+                                                   )(conv9) # (conv9) #(drop9)
+
+        conv11 = Conv2D(2, 3, activation = 'relu', padding = 'same',
+                                                  kernel_initializer = 'he_normal'
+                                                  )(conv10) #(conv10) #(drop10)
+        
    
-    conv10 = Conv2D(n_classes, 1, activation='softmax')(conv9)
+    conv12 = Conv2D(n_classes, 1, activation='softmax')(conv11)
     # conv10 = Conv2D(1, 1)(conv9)
 
-    model = Model(inputs = inputs, outputs = conv10)
+    model = Model(inputs = inputs, outputs = conv12)
 
 #    model.compile(optimizer = Adam(learning_rate = 1e-3), loss = 'mse', \
 #                  metrics=['mean_absolute_error'])
     if use_focal:
-        # Compile with the built-in Focal Loss
+
+        # Compile with the custom Focal Loss
         model.compile(optimizer=Adam(learning_rate=learning_rate),
-                  loss=tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25, gamma=2.0),
-                  metrics=['accuracy'])
+                      loss=tf.keras.losses.CategoricalFocalCrossentropy(
+                          alpha=0.25,
+                          gamma=2.0,
+                          from_logits=False,
+                          label_smoothing=0.0,
+                          axis=-1,
+                          reduction='sum_over_batch_size',
+                          name='categorical_focal_crossentropy'),
+                      metrics=['accuracy'])
+
+        
+        # Compile with tfa loss function (this block will be removed in the future),
+        # saved for debugging
+        
+        # model.compile(optimizer=Adam(learning_rate=learning_rate),
+        #           loss=tfa.losses.SigmoidFocalCrossEntropy(alpha=0.25, gamma=2.0),
+        #           metrics=['accuracy'])
+        
+    elif use_weighted:
+        
+        # Custom weighted loss
+        def loss_fn(labels, predictions):
+            return cl.weighted_categorical_crossentropy(labels, predictions, tf.constant(class_weights))
+        
+        # Custom weighted loss        
+        model.compile(optimizer=Adam(learning_rate=learning_rate),
+                      loss=loss_fn,
+                      metrics=['accuracy'])
     else:
-        model.compile(Adam(learning_rate = learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
+        # Default categorical cross-entropy
+        model.compile(optimizer=Adam(learning_rate=learning_rate),
+                      loss='categorical_crossentropy',
+                      metrics=['accuracy'])
     
     
     return model
@@ -168,20 +266,37 @@ print('Loading and preprocessing train data...')
 print('*'*30)
 # TODO: sort out the get path for the data
 # Get config
-config = io_utils.read_yaml_config('configs/apa_config.yaml')
+
+
+# Get the directory of the script being executed
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Navigate to the project root and construct the config path
+project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+config_path = os.path.join(project_root, 'configs', 'apa_config_detroit.yaml')
+
+config = io_utils.read_yaml_config(config_path)
 config=io_utils.fill_with_defaults(config['config'])
 
 
 n_classes = config["cnn_model"]["num_classes"] # Need to read from config
 input_size = eval(config["cnn_model"]["input_shape"])
 
-file_hsp = h5py.File('Labeld_RoadsVenus.h5', 'r')
-file_PCI = h5py.File('PCI_labels.h5', 'r')
+hsp_path = os.path.join(project_root, config['data']['hsp_path'])
+PCI_path = os.path.join(project_root, config['data']['PCI_path'])
+
+# TODO : Remove after config is updated
+# hsp_path = os.path.join(project_root, 'tests/runners/BoudingBoxList-83_-83_42_42.h5')
+# PCI_path = os.path.join(project_root, 'tests/runners/BoudingBoxLabel-83_-83_42_42.h5')
+
+file_hsp = h5py.File(hsp_path, 'r')
+file_PCI = h5py.File(PCI_path, 'r')
 img_train = file_hsp['cropped_segments'][:]
 mask_train = file_PCI['cropped_segments'][:]
 img_train = np.array(img_train)
 mask_train = np.array(mask_train)
 
+img_train[np.isnan(img_train)] = 0 # Why there were nones ? maybe in seg mask process ?
 img_train = img_train.astype('float32')
 
 ## Normilize
@@ -201,6 +316,9 @@ X_trainAug, X_test, y_trainAug, y_test = train_test_split(
     img_train, mask_train, test_size=0.2, random_state=1
 )
 
+# Add noise to the final result
+# X_test = da.add_random_noise(X_test) # Add noise to the final result
+
 categorical_mask_test = np.zeros(list(np.shape(y_test)[:-1]) + [n_classes])
 mask_train_int = y_test.astype('int')
 create_matrix_labels = True
@@ -213,36 +331,51 @@ for i in range(n_classes):
 
 
 #%% Augment the training
-aug_database, aug_labels = da.augment_dataset(X_trainAug, \
-                                              y_trainAug.astype(int), \
-                                                  num_augmented_samples=int(2.5e3),\
-                                                      aug_depth=2)
-aug_database = np.asarray(aug_database)
+def preprocess_data(X_trainAug, y_trainAug, aug_depth, num_augmented_samples, add_noise = False):
+    
+    aug_database_dense, aug_labels_dense = da.augment_dataset(X_trainAug, \
+                                                  y_trainAug.astype(int), \
+                                                      num_augmented_samples=int(num_augmented_samples),\
+                                                          aug_depth=aug_depth, # was 4
+                                                          add_noise = add_noise)
+        
+    aug_database = aug_database_dense #+ aug_database_sparse
+    aug_labels = aug_labels_dense #+ aug_labels_sparse
+    
+    aug_database = np.asarray(aug_database)
+    
+    aug_labels_categorical = np.zeros(list(np.shape(aug_labels)[:-1]) + [n_classes])
+    aug_labels_int = np.asarray(aug_labels).astype('int')
+    create_matrix_labels = True
+    for i in range(n_classes):
+        class_idx = np.where(aug_labels_int == i)
+        if create_matrix_labels :
+            aug_labels_categorical[class_idx[0], class_idx[1], class_idx[2], class_idx[3]+i] = 1    
+        else:
+            aug_labels_categorical[class_idx[0], class_idx[1]+i] = 1
+    
+    from sklearn.model_selection import train_test_split
+    X_trainFin, X_testAug, y_trainFin, y_testAug = train_test_split(
+        aug_database, aug_labels_categorical, test_size=0.2, random_state=1
+    )
+    
+    return X_trainFin, X_testAug, y_trainFin, y_testAug
 
-aug_labels_categorical = np.zeros(list(np.shape(aug_labels)[:-1]) + [n_classes])
-aug_labels_int = np.asarray(aug_labels).astype('int')
-create_matrix_labels = True
-for i in range(n_classes):
-    class_idx = np.where(aug_labels_int == i)
-    if create_matrix_labels :
-        aug_labels_categorical[class_idx[0], class_idx[1], class_idx[2], class_idx[3]+i] = 1    
-    else:
-        aug_labels_categorical[class_idx[0], class_idx[1]+i] = 1
 
-from sklearn.model_selection import train_test_split
-X_trainFin, X_testAug, y_trainFin, y_testAug = train_test_split(
-    aug_database, aug_labels_categorical, test_size=0.2, random_state=1
-)
+#%% Data Preprocess - Phase 1
 
+aug_depth_1 = config['net_preprocess']['phase_1']['aug_depth']
+num_augmented_samples_1 = config['net_preprocess']['phase_1']['num_augmented_samples']
+add_noise = config['cnn_model']['add_noise']
+
+
+X_trainFin_dense, X_testAug_dense, y_trainFin_dense, y_testAug_dense = \
+    preprocess_data(X_trainAug, y_trainAug, aug_depth=aug_depth_1,\
+                    num_augmented_samples=num_augmented_samples_1, add_noise=add_noise)
+        
 print('*'*30)
 print('Creating and compiling model...')
 print('*'*30)
-
-#%% Define the model
-model = unet_categorical(input_size = input_size, n_classes = n_classes)
-
-#%% Show CNN properties
-model.summary()
 
 #%% Fit Net
 print('*'*30)
@@ -251,43 +384,109 @@ print('*'*30)
 
 epochs = config["training"]["epochs"]
 early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=30)
+model_checkpointIni = ModelCheckpoint(f'weights_bceloss_ini.keras', monitor='val_loss', save_best_only=True)
 model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}epochs.keras', monitor='val_loss', save_best_only=True)
 
-# Define the learning rate scheduler
-from tensorflow.keras.callbacks import ReduceLROnPlateau
-reduce_lr = ReduceLROnPlateau(
-    monitor='val_accuracy',  # Metric to monitor
-    factor=0.1,          # Reduce the learning rate by this factor
-    patience=10,          # Number of epochs with no improvement before reducing
-    min_lr=1e-6          # Minimum learning rate
-)
+# Read ReduceLROnPlateau parameters
+reduce_lr_config = config['training']['reduce_lr']
+monitor = reduce_lr_config['monitor']
+factor = reduce_lr_config['factor']
+patience = reduce_lr_config['patience']
+min_lr = reduce_lr_config['min_lr']
 
+# Create the ReduceLROnPlateau callback
+reduce_lr = ReduceLROnPlateau(
+    monitor=monitor,
+    factor=factor,
+    patience=patience,
+    min_lr=eval(min_lr)
+)
+#%% Define the model
+# Access each phase explicitly
+phase_1 = config['training_phases']['phase_1']
+phase_2 = config['training_phases']['phase_2']
+phase_3 = config['training_phases']['phase_3']
+phase_4 = config['training_phases']['phase_4']
+
+model1 = unet_categorical(input_size = input_size, n_classes = n_classes,\
+                         use_focal=phase_1['use_focal'], learning_rate = eval(phase_1['learning_rate']))
+
+model2 = unet_categorical(input_size = input_size, n_classes = n_classes,\
+                         use_focal=phase_2['use_focal'], learning_rate = eval(phase_2['learning_rate']), \
+                             use_weighted = phase_2['use_weighted'], class_weights = phase_2['class_weights'])
+
+#%% Show CNN properties
+model2.summary()
+
+#%% Fit the net
+history =  model1.fit(X_trainFin_dense, y_trainFin_dense, batch_size=phase_1['batch_size'], epochs=phase_1['epochs'], \
+                     verbose=1, shuffle=True, validation_data=(X_testAug_dense, y_testAug_dense),
+                     callbacks=[model_checkpointIni, early_stopping, reduce_lr])
+
+# Load Weights from previous stage
+model2.load_weights('weights_bceloss_ini.keras')
+
+history =  model2.fit(X_trainFin_dense, y_trainFin_dense, batch_size=phase_2['batch_size'], epochs=phase_2['epochs'], \
+                     verbose=1, shuffle=True, validation_data=(X_testAug_dense, y_testAug_dense),
+                     callbacks=[model_checkpoint, early_stopping, reduce_lr])   
 
 #%% Refine with lower learining rate
 # Redifine the net with lower learning rate and load weights
-model = unet_categorical(learning_rate=5e-4) # 
+
+aug_depth_2 = config['net_preprocess']['phase_2']['aug_depth']
+num_augmented_samples_2 = config['net_preprocess']['phase_2']['num_augmented_samples']
+
+
+X_trainFin, X_testAug, y_trainFin, y_testAug = \
+    preprocess_data(X_trainAug, y_trainAug, aug_depth=aug_depth_2, num_augmented_samples=num_augmented_samples_2)
+
+
+model = unet_categorical(input_size = input_size, n_classes = n_classes, \
+                         learning_rate=eval(phase_3['learning_rate']), \
+                             add_extra_dropout = phase_3['add_extra_dropout'])
+
 model.load_weights('weights_bceloss_100epochs.keras')
 
 # set checkpoints
 model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}_refined.keras', monitor='val_accuracy', save_best_only=True)
 
 # Fit net
-history =  model.fit(X_trainFin, y_trainFin, batch_size=8, epochs=epochs, \
+history =  model1.fit(X_trainFin, y_trainFin, batch_size=phase_3['batch_size'],\
+                      epochs=phase_3['epochs'], \
                      verbose=1, shuffle=True, validation_data=(X_test, categorical_mask_test),
                      callbacks=[model_checkpoint, early_stopping, reduce_lr])
 
 #%% Replace loss function
 # Redifine the net with new loss to better treat outliers and load pretrained weights
-model = unet_categorical(use_focal=True, learning_rate=1e-3)
+model = unet_categorical(input_size = input_size, n_classes = n_classes, \
+                         use_focal=phase_4['use_focal'], learning_rate=eval(phase_4['learning_rate']), \
+                         add_extra_dropout = phase_4['add_extra_dropout'])
 model.load_weights(f'weights_bceloss_{epochs}_refined.keras')
 
 # set checkpoints
 model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}_refined2.keras', monitor='val_accuracy', save_best_only=True)
 
 # Fit net
-history =  model.fit(X_trainFin, y_trainFin, batch_size=8, epochs=epochs, \
+history =  model.fit(X_trainFin, y_trainFin, batch_size=phase_4['batch_size'], epochs=phase_4['epochs'], \
                      verbose=1, shuffle=True, validation_data=(X_test, categorical_mask_test),
                      callbacks=[model_checkpoint, early_stopping, reduce_lr])
+
+    
+#%% Try Another one
+
+# model = unet_categorical(input_size = input_size, n_classes = n_classes, \
+#                          use_focal=True, learning_rate=5e-4, \
+#                          add_extra_dropout = False)
+# model.load_weights(f'weights_bceloss_{epochs}_refined2.keras')
+
+# # set checkpoints
+# model_checkpoint = ModelCheckpoint(f'weights_bceloss_{epochs}_refined3.keras', monitor='val_accuracy', save_best_only=True)
+
+# # Fit net
+# history =  model.fit(X_trainFin, y_trainFin, batch_size=10, epochs=epochs, \
+#                      verbose=1, shuffle=True, validation_data=(X_test, categorical_mask_test),
+#                      callbacks=[model_checkpoint, early_stopping, reduce_lr])
+
 
 #%% Plot Training Loss
 plt.figure()
@@ -303,16 +502,17 @@ plt.show()
 
 
 #%% Plot some examples
+pred = model.predict(X_test)
+
 plt.figure()
-plt.imshow(categorical_mask_test[12, :, :, 1:4])
+plt.imshow(categorical_mask_test[130, :, :, 1:4])
 plt.figure()
-plt.imshow(pred[12, :, :, 1:4])
+plt.imshow(pred[130, :, :, 1:4])
 plt.figure()
-plt.imshow(X_test[12, :, :, 5])
+plt.imshow(X_test[130, :, :, 5])
 
 
 #%% Plot confution matrix
-pred = model.predict(X_test)
 pred_labels_numeric = np.argmax(pred, axis=-1)
 true_labels_numeric = np.argmax(categorical_mask_test, axis=-1)
 

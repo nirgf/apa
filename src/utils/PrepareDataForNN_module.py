@@ -84,3 +84,49 @@ def save_cropped_segments_to_h5(cropped_segments, file_name):
         print(f"Cropped segments successfully saved to {file_name}")
         
 
+
+def normalize_mask(mask, crop_size):
+    binary_mask = np.zeros(mask[:, :, 0].shape)
+    binary_mask[mask[:, :, 0] != 0] = 1
+    num_of_channels = mask.shape[-1]
+    
+    CNN_input = np.zeros([crop_size, crop_size])
+    input_height, input_width = CNN_input.shape
+    if all(np.asarray(np.shape(CNN_input)) > np.asarray(binary_mask.shape)):  
+
+        # Fill all the channels (not only binary)         
+        CNN_input = np.reshape(CNN_input, list(CNN_input.shape) + [1])
+        CNN_input = np.repeat(CNN_input, num_of_channels, -1)
+        CNN_input[np.where(mask != 0)] = mask[mask != 0]
+        
+    else:
+        
+        # Deal with the part in the frame
+        val_idx = np.asarray(np.where(binary_mask > 0))
+        in_frame_idx = (val_idx[0] < input_height) & (val_idx[1] < input_width)
+        val_idx_in_frame = val_idx[:, in_frame_idx]
+        
+        # Wrap the part outside the frame
+        out_frame_idx = val_idx[:, np.where((val_idx[0] > input_height) | (val_idx[1] > input_width))]
+        out_frame_idx = out_frame_idx[:, 0, :] # sort out the 'where' thing
+    
+        og_out_frame_idx = np.zeros(out_frame_idx.shape).astype(int)
+        og_out_frame_idx[:, :] = out_frame_idx[:, :].astype('int') # to be used on the diagonal array
+        idx_to_correct = (out_frame_idx != np.mod(out_frame_idx, crop_size))
+        out_frame_idx[idx_to_correct] = crop_size - (np.mod(out_frame_idx[idx_to_correct], crop_size) + 1)
+        
+        # Fill non-zero pixels only
+        empty_out_idx = np.where(CNN_input[out_frame_idx[0], out_frame_idx[1]] == 0)
+        out_frame_idx = [out_frame_idx[0][empty_out_idx], out_frame_idx[1][empty_out_idx]]
+        og_out_frame_idx = [og_out_frame_idx[0][empty_out_idx], og_out_frame_idx[1][empty_out_idx]]
+        
+        # Fill all the channels (not only binary)
+        CNN_input = np.reshape(CNN_input, list(CNN_input.shape) + [1])
+        CNN_input = np.repeat(CNN_input, num_of_channels, -1)
+        
+        # Put the correct values        
+        CNN_input[val_idx_in_frame[0], val_idx_in_frame[1], :] = mask[val_idx_in_frame[0], val_idx_in_frame[1], :]
+        CNN_input[out_frame_idx[0], out_frame_idx[1], :] = mask[og_out_frame_idx[0], og_out_frame_idx[1], :]
+        
+    return CNN_input
+
