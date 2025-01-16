@@ -59,7 +59,6 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
         road_hys_filter = np.reshape(binary_seg_mask, list(np.shape(segment_mask)) + [1])
 
         # Gets the roads in general
-        # crop_size=config['preprocessing']['augmentations']['crop_size'][0]
         num_of_channels = np.shape(hys_img)[-1]
         hys_roads = np.repeat(road_hys_filter, num_of_channels, -1)*hys_img
         NN_inputs = pp.crop_image_to_segments(config,hys_roads, image_dim=num_of_channels)
@@ -86,13 +85,35 @@ def create_database_from_VENUS(config_path,data_dirname,data_filename,metadata_f
         ### Save the data ###
         if output_dirname is None:
             output_dirname=data_dirname
-        os.mkdir(output_dirname)
+        # os.mkdir(output_dirname)
 
         output_path = Path(output_dirname).mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_dirname) # Arie : why ?
         base_files = ["All_RoadVenus", "PCI_labels", "Labeld_RoadsVenus","BoudingBoxList"]
         formatted_string = "_".join(map(lambda x: str(round(x)), roi))
-
-        pp.save_cropped_segments_to_h5(boudningbox_list_labeled_image, output_path / f"BoudingBoxList{formatted_string}.h5")
+        
+        # TODO : get the value from config
+        crop_size = config["cnn_model"]["input_shape"][0] # Assume symmetric crop size
+        normalized_masks = []
+        normalized_masks_labels = []
+        for i in range(len(boudningbox_list_labeled_image)):
+            normalized_masks = normalized_masks + \
+                [pp.normalize_mask(boudningbox_list_labeled_image[i]['mask'], crop_size)]
+                
+            label_mat = np.zeros(normalized_masks[i].shape[0:2])
+            label_mat[normalized_masks[i][:, :, 0] != 0] = boudningbox_list_labeled_image[i]['label']
+            
+            normalized_masks_labels = normalized_masks_labels + [label_mat.reshape(list(np.shape(label_mat)) + [1])]
+        
+        normalized_masks_labels = np.asarray(normalized_masks_labels)
+        normalized_masks = np.asarray(normalized_masks)
+        
+        # Save Seg Data
+        pp.save_cropped_segments_to_h5(normalized_masks, output_path / f"BoudingBoxList{formatted_string}.h5")
+        pp.save_cropped_segments_to_h5(normalized_masks_labels, output_path / f"BoudingBoxLabel{formatted_string}.h5")
+        
+        # Old data, might need to remove
+        # TODO : Sort out the old thing
         pp.save_cropped_segments_to_h5(fin_NN_inputs, output_path / f"All_RoadVenus_{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_true_labels, output_path / f"PCI_labels_{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, output_path / f"Labeld_RoadsVenus_{formatted_string}.h5")
@@ -107,8 +128,8 @@ if __name__ == "__main__":
 
     #Detroit
     config_path = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit.yaml')
-    data_dirname='/Users/nircko/DATA/apa/Detroit_20230710'
-    data_dirname = '/root/APA/Data/Detroit/Detroit_20230710'
+    data_dirname='Detroit_20230710'
+    data_dirname = '/home/ariep/Hyperspectral Road/brach_from_github/apa/data/Detroit/Venus_20230910'
 
     data_filename = 'VENUS-XS_20230710-160144-000_L2A_DETROIT_C_V3-1_FRE_B1.tif'
     excel_path = os.path.join(REPO_ROOT, 'data/Detroit/Pavement_Condition.csv')
@@ -125,7 +146,7 @@ if __name__ == "__main__":
     # TODO : add the out path to cretae database script
     dataset_out_path = ''
 
-    create_database_from_VENUS(config_path,data_dirname, data_filename,metadata_filename, excel_path)
+    create_database_from_VENUS(config_path,data_dirname, data_filename,metadata_filename, excel_path,output_dirname=dataset_out_path)
 
 
 
