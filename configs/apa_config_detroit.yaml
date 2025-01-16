@@ -36,10 +36,10 @@ config:
   net_preprocess:
     phase_1:
       aug_depth: 600                               # Depth of augmentations for phase 1
-      num_augmented_samples: 16                 # Number of augmented samples for phase 1
+      num_augmented_samples: 2000                 # Number of augmented samples for phase 1
     phase_2:
       aug_depth: 50                                # Depth of augmentations for phase 2
-      num_augmented_samples: 100                  # Number of augmented samples for phase 2
+      num_augmented_samples: 5000                  # Number of augmented samples for phase 2
   
   cnn_model:
     architecture: "unet_categorical"              # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
@@ -75,7 +75,7 @@ config:
       use_focal: false
       learning_rate: 1e-3
       use_weighted: true
-      class_weights: [0.001, 1, 1, 1]
+      class_weights: [0.000001, 1, 0.5, 1]
       batch_size: 16
       epochs: 100
     phase_3:
