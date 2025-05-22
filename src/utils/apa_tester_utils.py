@@ -180,7 +180,9 @@ def get_mask_from_roads_gdf(npz_filename,crop_rect,data=None):
             metadata_dict = json.load(f)
         is_roi_within_bounds=pc_utils.is_roi_within_bounds(data["roi"],metadata_dict["roi"])
         if not is_roi_within_bounds:
-            raise ValueError(f"Exisiting ROI:{metadata_dict["roi"]}  of GDF roads is not bounded by the requested: {data["roi"]}")
+            print("Exisiting ROI of GDF roads is not bounded by the requested data") # Patched by Arie 30.01.2025
+            
+            #raise ValueError(f"Exisiting ROI:{metadata_dict["roi"]}  of GDF roads is not bounded by the requested: {data["roi"]}")
         print(f"File '{npz_filename}' found. Loading data...")
         # %% Get only pixels that intersect with roads
         coinciding_mask = load_npz(npz_filename).toarray()
