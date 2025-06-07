@@ -1,0 +1,113 @@
+# General configuration for hyperspectral image processing and CNN-based analysis
+config:
+  data:
+    input_path: "data/hyperspectral_images/"        # Path to hyperspectral images
+    output_path: "results/"                         # Directory for output results
+    big_tiff: false                                 # is Tiff image contains all band or need to parse different tiff files into one array
+    zone: 'Detroit'                                 # How to convert the geo tiff coorindates into real world cooridantes
+    bands_to_use: [10, 20, 30, 40, 50]              # Selected spectral bands for processing
+    spatial_resolution: 1.0                         # Resolution of the image in meters
+    label_file: "data/labels.csv"                   # Path to labels for supervised learning
+    rois: [[-83.14294, -83.00007,42.34429, 42.39170]] # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
+    hsp_path: "tests/runners/BoudingBoxList-83_-83_42_42.h5" # Path to HSP file
+    PCI_path: "tests/runners/BoudingBoxLabel-83_-83_42_42.h5" # Path to PCI file
+  
+  preprocessing:
+    normalization: true                             # Whether to normalize pixel values
+    normalization_type: "min-max"                   # Type of normalization (min-max, z-score)
+    spectral_smoothing: false                       # Whether to apply spectral smoothing
+    white_threshold: 0.83                           # define white level on RGB image
+    gray_threshold: 0.1                             # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
+    grad_threshold: 0.6                             # define gradient image maginitude over gray level image
+    
+    georeferencing:                                 # Georeferencing to apply
+      merge_threshold: [0.05]                       # Threshold for merging
+      merge_method: "mean_min"                      # Method for merging segments
+      osx_map_mask_path:                            # Relative path for OpenStreetMap roads mask
+       "data/Detroit/masks_OpenStreetMap/Detroit_OpenStreets_roads_mask.npz"
+      dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
+       "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
+  
+  augmentations:                                  # Augmentations to apply
+    rotation: true                                # Enable random rotations
+    flipping: true                                # Enable random horizontal/vertical flips
+    cropping: true                                # Enable random cropping
+
+  net_preprocess:
+    phase_1:
+      aug_depth: 5                               # Depth of augmentations for phase 1
+      num_augmented_samples: 2000                 # Number of augmented samples for phase 1
+    phase_2:
+      aug_depth: 2                                # Depth of augmentations for phase 2
+      num_augmented_samples: 5000                  # Number of augmented samples for phase 2
+  
+  cnn_model:
+    architecture: "Hybrid_CNN"              # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
+    input_shape: (32, 32, 12)                   # Shape of input tensor (height, width, bands)
+    num_classes: 3                                # Number of target classes for classification
+    base_filters: 32                              # Number of filters in the first layer
+    dropout_rate: 0.5                             # Dropout rate for regularization
+    activation_function: "relu"                   # Activation function to use
+    optimizer: "adam"                             # Optimizer for training
+    loss_function: "categorical_crossentropy"     # Loss function for training
+    overlap : 0.2
+    add_noise: false                              # Whether to add noise during augmentation
+  training:
+    batch_size: 16                                # Batch size for training
+    epochs: 20                                    # Number of epochs to train the model
+    learning_rate_ini: 0.001                      # Initial learning rate
+    learning_rate_ref: 0.5e-4                     # Learning rate in the refinment phase
+    learning_rate_focal: 1e-3                     # Learning rate after switching to focal loss
+    reduce_lr:                                    # Reduce learning rate on plateau
+      monitor: "val_accuracy"                     # Metric to monitor
+      factor: 0.1                                 # Reduce learning rate by this factor
+      patience: 10                                # Number of epochs with no improvement before reducing
+      min_lr: 1e-6                                # Minimum learning rate
+      
+  training_phases:
+    phase_1:
+      use_focal: false
+      learning_rate: 1e-3
+      use_weighted: false
+      batch_size: 16
+      epochs: 10
+    phase_2:
+      use_focal: false
+      learning_rate: 1e-2
+      use_weighted: true
+      class_weights: [0.001, 1, 1, 1]
+      batch_size: 16
+      epochs: 100
+    phase_3:
+        use_focal: false
+        learning_rate: 5e-4
+        use_weighted: true
+        class_weights: [0.001, 1, 1, 1]
+        add_extra_dropout: false
+        batch_size: 8
+        epochs: 100
+    phase_4:
+        use_focal: true
+        learning_rate: 1e-4
+        use_weighted: true
+        class_weights: [0.001, 1, 1, 1]
+        add_extra_dropout: false
+        batch_size: 8
+        epochs: 100
+      
+  reduce_lr:                                    # Reduce learning rate on plateau
+    monitor: "val_accuracy"                     # Metric to monitor
+    factor: 0.1                                 # Reduce learning rate by this factor
+    patience: 10                                # Number of epochs with no improvement before reducing
+    min_lr: 1e-6                                # Minimum learning rate
+
+  output:
+    save_model: true                              # Whether to save the trained model
+    model_save_path: "models/trained_model.h5"    # Path to save the trained model
+    log_path: "logs/training.log"                 # Path for training logs
+    evaluation_metrics:                           # Metrics to evaluate during and after training
+      - "accuracy"
+      - "precision"
+      - "recall"
+      - "f1_score"
+

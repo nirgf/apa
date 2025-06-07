@@ -16,9 +16,9 @@ config:
     normalization: true                             # Whether to normalize pixel values
     normalization_type: "min-max"                   # Type of normalization (min-max, z-score)
     spectral_smoothing: false                       # Whether to apply spectral smoothing
-    white_threshold: 0.83                           # define white level on RGB image
-    gray_threshold: 0.1                             # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
-    grad_threshold: 0.6                             # define gradient image maginitude over gray level image
+    # white_threshold: 0.83                           # define white level on RGB image
+    # gray_threshold: 0.1                             # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
+    # grad_threshold: 0.6                             # define gradient image maginitude over gray level image
     
     georeferencing:                                 # Georeferencing to apply
       merge_threshold: [0.05]                       # Threshold for merging
@@ -35,15 +35,15 @@ config:
 
   net_preprocess:
     phase_1:
-      aug_depth: 600                               # Depth of augmentations for phase 1
-      num_augmented_samples: 2000                 # Number of augmented samples for phase 1
+      aug_depth: 5                               # Depth of augmentations for phase 1
+      num_augmented_samples: 20000                 # Number of augmented samples for phase 1
     phase_2:
-      aug_depth: 50                                # Depth of augmentations for phase 2
+      aug_depth: 2                                # Depth of augmentations for phase 2
       num_augmented_samples: 5000                  # Number of augmented samples for phase 2
   
   cnn_model:
     architecture: "unet_categorical"              # Type of CNN architecture (e.g., 3D-CNN, 2D-CNN)
-    input_shape: (128, 128, 12)                   # Shape of input tensor (height, width, bands)
+    input_shape: (64, 64, 12)                   # Shape of input tensor (height, width, bands)
     num_classes: 4                                # Number of target classes for classification
     base_filters: 32                              # Number of filters in the first layer
     dropout_rate: 0.5                             # Dropout rate for regularization
@@ -51,7 +51,7 @@ config:
     optimizer: "adam"                             # Optimizer for training
     loss_function: "categorical_crossentropy"     # Loss function for training
     overlap : 0.2
-    add_noise: true                               # Whether to add noise during augmentation
+    add_noise: true                              # Whether to add noise during augmentation
   training:
     batch_size: 16                                # Batch size for training
     epochs: 100                                    # Number of epochs to train the model
@@ -73,9 +73,9 @@ config:
       epochs: 10
     phase_2:
       use_focal: false
-      learning_rate: 1e-3
+      learning_rate: 1e-2
       use_weighted: true
-      class_weights: [0.000001, 1, 0.5, 1]
+      class_weights: [0.001, 1, 1, 1]
       batch_size: 16
       epochs: 100
     phase_3:

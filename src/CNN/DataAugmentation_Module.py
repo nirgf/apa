@@ -24,6 +24,11 @@ def translate_binaty_image(matrix, seed):
     """
     random.seed(seed)
     image_idx = np.where(matrix != 0)
+    
+    # In case no road pixels were identified
+    if np.shape(image_idx)[1] == 0:
+        return np.zeros(matrix.shape)
+    
     image = matrix[min(image_idx[0]):max(image_idx[0])+1,\
                    min(image_idx[1]):max(image_idx[1])+1, :]
     
