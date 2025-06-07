@@ -20,6 +20,8 @@ from scipy.spatial import cKDTree
 from skimage.draw import line
 import matplotlib.pyplot as plt
 import matplotlib
+from enums.datasets_enum import Dataset as enum_Dataset
+
 
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
@@ -75,7 +77,7 @@ def get_GT_xy_PCI(xls_path, isLatLon = False):
     return (lon_vec,lat_vec,pci_vec, seg_id)
 
 @pc_utils.log_execution_time
-def get_hypter_spectral_imaginery(data_filename,data_dirname,config_data):
+def get_multi_spectral_imaginery_Venus(data_filename,data_dirname,config_data):
     if config_data['zone']=="Detroit" and config_data['big_tiff']==False:
         bands = range(1, 13)
         VenusImage_ls = []
@@ -105,14 +107,40 @@ def get_hypter_spectral_imaginery(data_filename,data_dirname,config_data):
         # unpack lat/lon
         lon_mat = x[:, :, 0]
         lat_mat = x[:, :, 1]
+        
         return lon_mat, lat_mat, VenusImage
     else:
         raise Exception("Currently only supports Detroit conversion of coordinates or Israel")
 
+#%%        
+def get_multi_spectral_imaginery_airbus(data_filename,data_dirname,config_data):
+    
+    if not (config_data['zone']=="Detroit" and config_data['big_tiff']==False):
+        Exception("Config error, chack data and supported formats")
+    
+    Image_ls = []
+    for band_filename in data_filename:
+        Image_band = ImportVenusModule.getVenusData(data_dirname, band_filename)
+        Image_ls += [Image_band]
+    
+    fin_image = np.asarray(Image_ls)
+    fin_image = fin_image.reshape(-1, fin_image.shape[2], fin_image.shape[3])
+    fin_image = np.transpose(fin_image, axes=(1, 2, 0))
 
 
 
+    #%% Get lat/lon from data
 
+    x = getLatLon_fromTiff.convert_raster_to_geocoords(os.path.join(data_dirname, band_filename),\
+                                                       zone_number=17, \
+                                                       zone_letter='T')
+    # unpack lat/lon  
+    lon_mat = x[:, :, 0]
+    lat_mat = x[:, :, 1]
+    
+    return lon_mat, lat_mat, fin_image
+
+#%%
 def get_PCI_ROI(roi,xy_pci):
     # # example ROI format:
     # xmin_cut = 35.095
@@ -174,7 +202,7 @@ def get_mask_from_roads_gdf(npz_filename,crop_rect,data=None):
         if data is None:
             raise ValueError("No data provided to save when the file does not exist.")
         else:
-            create_mask_from_roads_gdf(npz_filename,data)
+            create_mask_from_roads_gdf(npz_filename, data)
     else:
         with open(metda_filename, 'r') as f:
             metadata_dict = json.load(f)
@@ -190,7 +218,7 @@ def get_mask_from_roads_gdf(npz_filename,crop_rect,data=None):
         return coinciding_mask[y_ind_min: y_ind_max, x_ind_min: x_ind_max]
 
 @pc_utils.log_execution_time
-def create_mask_from_roads_gdf(npz_filename,data):
+def create_mask_from_roads_gdf(npz_filename, data):
     roi = data["roi"]
     lon_mat = data["Y_cropped"]
     lat_mat = data["X_cropped"]
@@ -321,21 +349,31 @@ def analyze_pixel_value_ranges(hys_img,segment_mask, masks_tags_numerical=[1,2,3
     return stat_from_segments
 
 
-def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
+def cropROI_Venus_image(roi, lon_mat, lat_mat, MSP_Image, ie_datasource):
     xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
     # Get the indices corresponding to the cut boundaries
-    kiryatAtaIdx = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut) \
+    idx_roi = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut) \
                                & (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
 
     # %
     # Cut the image based on indices
     # Get the indices corresponding to the cut boundaries
     # %
-    x_ind_min, x_ind_max = np.min(kiryatAtaIdx[:, 1]), np.max(kiryatAtaIdx[:, 1])
-    y_ind_min, y_ind_max = np.min(kiryatAtaIdx[:, 0]), np.max(kiryatAtaIdx[:, 0])
+    x_ind_min, x_ind_max = np.min(idx_roi[:, 1]), np.max(idx_roi[:, 1])
+    y_ind_min, y_ind_max = np.min(idx_roi[:, 0]), np.max(idx_roi[:, 0])
     # Cut the image based on indices
-    RGB_Img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max,
-                   [6, 3, 1]].astype(float)
+    cropped_MSP_img = MSP_Image[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
+    
+    match enum_Dataset(ie_datasource):
+        case enum_Dataset.venus_Detroit:    
+            RGB_Img = cropped_MSP_img[:, :, [6, 3, 1]].astype(float)
+        
+        case enum_Dataset.airbus_HSP_Detroit:
+            RGB_Img = cropped_MSP_img[:, :, 3:].astype(float)
+        
+        case enum_Dataset.airbus_Pan_Detroit:
+            RGB_Img = np.repeat(cropped_MSP_img, repeats=3, axis=2)
+            
     RGB_Img[RGB_Img <= 0] = np.nan
     norm_vec = np.nanmax(RGB_Img, axis=(0, 1)).astype(float)
     for normBandIdx in range(len(norm_vec)):
@@ -345,22 +383,20 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage):
         RGB_Img[:, :, normBandIdx] = equalize_image(img,1)
 
 
-    lon_mat_KiryatAta = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
-
-    lat_mat_KiryatAta = lat_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+    lon_mat_roi = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+    lat_mat_roi = lat_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
 
     # normalize spectral image for all bands
     # TODO: verfiy normalization method if has any effect on results
-    hys_img = VenusImage[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
-    hys_img = pc_utils.normalize_hypersepctral_bands(hys_img)
+    cropped_MSP_img = pc_utils.normalize_hypersepctral_bands(cropped_MSP_img)
 
     # Crop the X, Y, and Z arrays based on these indices
-    X_cropped = lat_mat_KiryatAta
-    Y_cropped = lon_mat_KiryatAta
+    X_cropped = lat_mat_roi
+    Y_cropped = lon_mat_roi
     # Apply the mask to the image
     Z_cropped = RGB_Img
 
-    return X_cropped, Y_cropped, hys_img,Z_cropped, (x_ind_min,y_ind_min,x_ind_max,y_ind_max)
+    return X_cropped, Y_cropped, cropped_MSP_img, Z_cropped, (x_ind_min, y_ind_min, x_ind_max, y_ind_max)
 
 def equalize_image(img,fill=0):
     nan_mask = np.isnan(img)
@@ -375,7 +411,22 @@ def equalize_image(img,fill=0):
     return image_eq
 
 def data_importer(config,data_dirname,data_filename,metadata_filename):
-    lon_mat, lat_mat, VenusImage = get_hypter_spectral_imaginery(data_filename, data_dirname, config["data"])
+    
+    ie_datasource = config['data']['enum_data_source']
+    match enum_Dataset(ie_datasource):
+        case enum_Dataset.venus_IL:
+            lon_mat, lat_mat, VenusImage = get_multi_spectral_imaginery_Venus(data_filename, data_dirname, config["data"])
+            
+        case enum_Dataset.venus_Detroit:
+            lon_mat, lat_mat, VenusImage = get_multi_spectral_imaginery_Venus(data_filename, data_dirname, config["data"])
+                
+        case enum_Dataset.airbus_HSP_Detroit:
+            
+            lon_mat, lat_mat, VenusImage = get_multi_spectral_imaginery_airbus(data_filename, data_dirname, config["data"])
+            
+        case enum_Dataset.airbus_Pan_Detroit:
+            return
+
     if "rois" in config["data"]:
         rois = config["data"]["rois"]
     else:
@@ -383,7 +434,9 @@ def data_importer(config,data_dirname,data_filename,metadata_filename):
         rois = [roi]
     return lon_mat, lat_mat, VenusImage,rois
 
-def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
+def process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
+    # TODO : change names and add support to enum
+    enum_data_source = config["data"].get("enum_data_source")
     if config["data"]["zone"] == "Israel":
         GT_xy_PCI = get_GT_xy_PCI(excel_path, isLatLon=False)  # convert to Israel Coord to LatLon
         points_PCI, ROI_point_idx = get_PCI_ROI(roi, GT_xy_PCI[:3])
@@ -394,11 +447,12 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
         seg_id = GT_xy_PCI[-1]
         ROI_seg = seg_id[ROI_point_idx]
     #USE only relevant ROI
-    X_cropped, Y_cropped, hys_img,RGB_enchanced, cropped_rect = cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage) # retun also optical center x,y relative to orignal map
+    X_cropped, Y_cropped, hys_img, RGB_enchanced, cropped_rect = \
+        cropROI_Venus_image(roi, lon_mat, lat_mat, VenusImage, enum_data_source) # retun also optical center x,y relative to orignal map
     OC_xy=cropped_rect[:2]
     print(f'Optical center ROI in xy[column][row]{OC_xy}\n')
 
-    # this function merge different lane into one PCI (assumption, may not always be valid)
+    # this function merges different lanes into one PCI (assumption, may not always be valid)
     # TODO: optimize threshold
     points_merge_PCI = pc_utils.merge_close_points(points_PCI[:, :2], points_PCI[:, 2], 50e-5)  # TODO:
     xy_points_merge = points_merge_PCI[:, :2]
@@ -408,13 +462,21 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
     binary_mask = np.zeros(hys_img.shape[:-1])
 
     # USE open street maps for creating map of all
-    if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:
+    ie_datasource = config["data"]["enum_data_source"]
+    
+    if 'osx_map_mask_path' in config["preprocessing"]["georeferencing"]:        
         npz_filename = config["preprocessing"]["georeferencing"]["osx_map_mask_path"]
     else:
         npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
-
+    
+    ## Add ie_ie_datasource suffix
+    npz_filename = npz_filename[:npz_filename.find('.npz')] + str(ie_datasource) + '.npz'
+    
+    # Get Mask
     npz_filename = os.path.join(REPO_ROOT, npz_filename)
-    coinciding_mask = get_mask_from_roads_gdf(npz_filename,cropped_rect,{"roi":roi})
+    
+    mask_data = {"roi":roi, "X_cropped":X_cropped, "Y_cropped":Y_cropped}
+    coinciding_mask = get_mask_from_roads_gdf(npz_filename, cropped_rect, mask_data)
 
     lut = None
     if len(ROI_seg)==0: # if there is not segemts ID with the PCI data, use the old method for building mask for roads
@@ -437,6 +499,11 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
             npz_filename = config["preprocessing"]["georeferencing"]["dijkstra_map_mask_path"]
         else:
             npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz'
+            
+        ## Add ie_ie_datasource suffix
+        npz_filename = npz_filename[:npz_filename.find('.npz')] + str(ie_datasource) + '.npz'
+        
+        # Get Mask
         npz_filename = os.path.join(REPO_ROOT, npz_filename)
         merge_points_dijkstra,lut = pc_utils.merge_points_dijkstra(npz_filename, X_cropped, Y_cropped, coinciding_mask,
                                                                points_PCI, ROI_seg)
@@ -447,12 +514,15 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage,excel_path,roi):
     wt=config["preprocessing"].get("white_threshold", None)
     gyt = config["preprocessing"].get("gray_threshold", None)
     gdt = config["preprocessing"].get("grad_threshold", None)
+    
     if all(x is None for x in (wt, gyt,gdt)):
         segment_mask=classified_roads_mask
     else:
+    
         ###
         # Segments mask enhacement based on heuristic of gray color as asphalt indicator and object detection based on sobel gradient magnitude over Y channel (gray-level channel only)
         ###
+        
         title_dict={"wt":wt,"gyt":gyt,"gdt":gdt}
         print(title_dict)
         # TODO: optimize all the parameters of enhancment

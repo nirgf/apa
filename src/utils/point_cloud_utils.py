@@ -165,6 +165,7 @@ import matplotlib.pyplot as plt
 from scipy.sparse.csgraph import dijkstra
 from scipy.sparse import csr_matrix
 import tqdm
+
 def get_nearest_road_point(point_lat, point_lon, coinciding_mask, X_cropped, Y_cropped):
     XY_ind = np.unravel_index(np.argmin(np.square(X_cropped - point_lat)\
                               + np.square(Y_cropped - point_lon))
@@ -560,7 +561,7 @@ def dilate_mask(mask, dilation_pixels=3):
     return dilated_mask
 
 
-def apply_masks_and_average(image, mask,debug_plots=False,**kwargs):
+def apply_masks_and_average(image, mask, debug_plots=False, **kwargs):
     """
     Apply a mask to the multi-channel image and compute the average pixel values for each channel.
 

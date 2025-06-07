@@ -156,5 +156,9 @@ venv*/*
 *.html
 *.Identifier
 *.tiff
+*.tif
+*.TIF
 *.kml
+*.keras
+*.h5
 
