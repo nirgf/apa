@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from PIL.ImageColor import colormap
 import src.utils.pc_plot_utils
-from src.CONST import bands_dict
+from src.CONST import get_spectral_bands
 from scipy.interpolate import griddata
 import pandas as pd
 from src.utils import ImportVenusModule,getLatLon_fromTiff

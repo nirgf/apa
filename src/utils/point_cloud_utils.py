@@ -197,7 +197,7 @@ def is_roi_within_bounds(small_roi, large_roi):
 
 
 @log_execution_time
-def merge_points_dijkstra(npz_filename,X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
+def merge_points_dijkstra(npz_filename, X_cropped, Y_cropped,coinciding_mask, points_PCI, ROI_seg):
     npz_file_path = Path(npz_filename)
     PCI_segID_LUT_filename=npz_file_path.with_suffix(".json")
     if os.path.exists(npz_filename) and  os.path.exists(PCI_segID_LUT_filename):

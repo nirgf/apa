@@ -1,6 +1,6 @@
 import os.path
 import numpy as np
-from src.CONST import bands_dict
+from src.CONST import get_spectral_bands
 import src.utils.apa_tester_utils as apa_utils
 import src.utils.PrepareDataForNN_module as pp
 from src.utils import ReadDetroitDataModule
@@ -61,6 +61,7 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
         
         # TODO fix naming scheme
         stat_from_segments = apa_utils.analyze_pixel_value_ranges(cropped_msp_img, segment_mask)
+        bands_dict = get_spectral_bands(config=config)
         wavelengths_array = 1e-3 * np.array([info['wavelength'] for info in bands_dict.values()])
         if debug_plots:
             plt_utils.plot_spectral_curves(wavelengths_array, stat_from_segments,None,'mean')
@@ -97,11 +98,11 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
         # os.mkdir(output_dirname)
 
         output_path = Path(output_dirname).mkdir(parents=True, exist_ok=True)
-        output_path = Path(output_dirname) # Arie : why ?
+        output_path = Path(output_dirname)
         base_files = ["All_RoadVenus", "PCI_labels", "Labeld_RoadsVenus","BoudingBoxList"]
-        formatted_string = "_".join(map(lambda x: str(round(x)), roi))
+        formatted_string = "_".join(map(lambda x: str(round(x)), roi)) + \
+                           "_DataSource_" + str(config['data']['enum_data_source'])
         
-        # TODO : get the value from config
         crop_size = eval(config["cnn_model"]["input_shape"])[0] # Assume symmetric crop size
         normalized_masks = []
         normalized_masks_labels = []
@@ -109,8 +110,8 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
         ### This is Temp for testing ###
         import pickle
 
-        with open('boudningbox_list_labeled_image_enh.pickle', 'rb') as f:
-            boudningbox_list_labeled_image = pickle.load(f)
+        # with open('boudningbox_list_labeled_image_enh.pickle', 'rb') as f:
+        #     boudningbox_list_labeled_image = pickle.load(f)
             
         ### End Temp For Testing ###
         
@@ -138,9 +139,9 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
         
         # Old data, might need to remove
         # TODO : Sort out the old thing
-        pp.save_cropped_segments_to_h5(fin_NN_inputs, output_path / f"All_RoadVenus_{formatted_string}.h5")
+        pp.save_cropped_segments_to_h5(fin_NN_inputs, output_path / f"All_Road_{formatted_string}.h5")
         pp.save_cropped_segments_to_h5(fin_true_labels, output_path / f"PCI_labels_{formatted_string}.h5")
-        pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, output_path / f"Labeld_RoadsVenus_{formatted_string}.h5")
+        pp.save_cropped_segments_to_h5(fin_NN_labeled_inputs, output_path / f"Labeld_Roads_{formatted_string}.h5")
         basename = Path(Path(Path(data_filename).stem).stem).stem + '.h5'
         print(basename)
 
@@ -148,13 +149,7 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
 
 
 if __name__ == "__main__":
-    
-    # TODO: integrate Enums, only config path should be chnaged.
-    
-    ###########################################################################
-    ##################### Case for enum airbus_hps ############################
-    ###########################################################################
-    
+      
     #Detroit
     config_path  = os.path.join(apa_utils.REPO_ROOT, 'configs/apa_config_detroit_Aribus_2025.yaml')
     
@@ -178,12 +173,7 @@ if __name__ == "__main__":
     metadata_filename = 'data/dummy_metadata.json'
     
     
-    
-    ###########################################################################
-    ####################### End Enum cases   ##################################
-    ###########################################################################
-    
-    # TODO : add the out path to cretae database script
+    # out path to cretae database script
     dataset_out_path = config['config']['data'].get('output_path')
     
     # Add root path to config & Change folder to it
