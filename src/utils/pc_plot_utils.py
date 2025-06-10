@@ -162,7 +162,7 @@ def plot_spectral_curves(wavelengths_array, stats, masks_tags_description=None,m
             masks_tags_description) else f"{pixel_value} (N={count})"
 
         # Plot mean curve with error bars
-        plt.plot(wavelengths_array, avg, color=color, label=label)
+        plt.plot(wavelengths_array, avg, '*', color=color, label=label)
         plt.errorbar(wavelengths_array, avg, yerr=std, fmt="o", color=color, alpha=0.5)
 
     # Add visual indicators for visible (VIS) and infrared (IR) ranges
