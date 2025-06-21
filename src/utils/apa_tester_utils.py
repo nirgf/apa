@@ -8,7 +8,7 @@ from src.CONST import get_spectral_bands
 from scipy.interpolate import griddata
 import pandas as pd
 from src.utils import ImportVenusModule,getLatLon_fromTiff
-from src.geo_reference import CovertITM2LatLon
+from src.geo_reference import CovertITM2LatLon, GetOptimalRoadOffset
 import src.utils.point_cloud_utils as pc_utils
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, save_npz, load_npz
@@ -21,6 +21,8 @@ from skimage.draw import line
 import matplotlib.pyplot as plt
 import matplotlib
 from enums.datasets_enum import Dataset as enum_Dataset
+from src.ImagePreProcessModule.shadow_manipulation_submodule import ylim, classShadow
+
 
 
 # matplotlib.use('Qt5Agg')
@@ -375,12 +377,12 @@ def cropROI_Venus_image(roi, lon_mat, lat_mat, MSP_Image, ie_datasource):
             RGB_Img = np.repeat(cropped_MSP_img, repeats=3, axis=2)
             
     RGB_Img[RGB_Img <= 0] = np.nan
-    norm_vec = np.nanmax(RGB_Img, axis=(0, 1)).astype(float)
+    norm_vec = np.nanpercentile(RGB_Img, q = 95, axis=(0, 1)).astype(float)
     for normBandIdx in range(len(norm_vec)):
         img=RGB_Img[:, :, normBandIdx]
         # Create a mask for NaN values
         RGB_Img[:, :, normBandIdx] = img / norm_vec[normBandIdx]
-        RGB_Img[:, :, normBandIdx] = equalize_image(img,1)
+        # RGB_Img[:, :, normBandIdx] = equalize_image(img,1)
 
 
     lon_mat_roi = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
@@ -511,7 +513,7 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
 
         classified_roads_mask = merge_points_dijkstra
 
-    wt=config["preprocessing"].get("white_threshold", None)
+    wt  = config["preprocessing"].get("white_threshold", None)
     gyt = config["preprocessing"].get("gray_threshold", None)
     gdt = config["preprocessing"].get("grad_threshold", None)
     
@@ -525,29 +527,54 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
         
         title_dict={"wt":wt,"gyt":gyt,"gdt":gdt}
         print(title_dict)
+        
         # TODO: optimize all the parameters of enhancment
+        
         enhance_morph_operator_type=config["preprocessing"].get("enhance_morph_operator_type", "dilation")
-        enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 3)
-        if enhance_morph_operator_type is not None and enhance_morph_operator_size>0:
+        enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 5)
+        
+        if enhance_morph_operator_type is not None and enhance_morph_operator_size > 0:
             segment_mask_nan = pc_utils.nan_arr(
-                pc_utils.morphological_operator_multiclass_mask(classified_roads_mask,enhance_morph_operator_type, 'square', enhance_morph_operator_size))
+                pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, enhance_morph_operator_type, 'square', enhance_morph_operator_size))
         else:
             segment_mask_nan = pc_utils.nan_arr(classified_roads_mask)
+
         if gyt>=0:
+            
+            # TODO: add function parameters to config + sort out outputs
+            # _,_,imageClear = classShadow.removeShadow(hys_img[:, :, 0:3], brightness=70, contrast=2)
+            
+            ############## Ben's Shadow Part Should be incorperated here ####################
+            
             ## Remove of non-gray parts due to incorrect geo-reference
-            gray_color_enhanced = enhance_gray_based_on_RGB(config, RGB_enchanced, segment_mask_nan)
+            gray_color_enhanced, x_off, y_off = enhance_gray_based_on_RGB(config, RGB_enchanced, segment_mask_nan)
+
             # combine_mask_roads = pc_utils.morphological_operator_multiclass_mask(gray_color_enhanced, 'closing', 'square', 1)
             segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
-        if gdt>=0:
+
             # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
-            segment_mask_nan=enhance_mask_grad(gdt,classified_roads_mask,RGB_enchanced,segment_mask_nan)
+            segment_mask_nan=enhance_mask_grad(gdt, classified_roads_mask, RGB_enchanced,segment_mask_nan)
+
         segment_mask=segment_mask_nan
 
+        # Offset all the variables by the new found offset :
+        
+        # Define source and target ranges
+        ix_x_start = max(0, -x_off)
+        ix_x_end = segment_mask.shape[0] - max(0, x_off)
+        ix_y_start = max(0, -y_off)
+        ix_y_end = segment_mask.shape[1] - max(0, y_off)
+                
+        X_cropped       = X_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        Y_cropped       = Y_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        hys_img         = hys_img  [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        coinciding_mask = coinciding_mask[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        segment_mask    = segment_mask   [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        
+    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask, lut
 
-    return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask,lut
 
-
-def enhance_mask_grad(grad_threshold,classified_roads_mask,RGB_enchanced,segment_mask_nan):
+def enhance_mask_grad(grad_threshold, classified_roads_mask, RGB_enchanced, segment_mask_nan):
     # Remove of outliers based on object detection on the RGB image
     Y, _, _ = pc_utils.rgb_to_yuv(RGB_enchanced)
     # do sobel over mean filter luminace visible image
@@ -563,7 +590,7 @@ def enhance_mask_grad(grad_threshold,classified_roads_mask,RGB_enchanced,segment
         f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100 * (1 - np.sum(~np.isnan(segment_mask_obj_removed)) / np.sum(~np.isnan(segment_mask_nan))):.2f}% of pixels from original mask\n\n')
     return segment_mask_obj_removed
 
-def enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask):
+def enhance_gray_based_on_RGB(config, RGB_enchanced, dilated_mask):
     """
     A function that takes mask of roads and refine it only where there is a gray color"
     Args:
@@ -580,12 +607,25 @@ def enhance_gray_based_on_RGB(config,RGB_enchanced,dilated_mask):
     gray_color_mask = (diff_rg <= gray_threshold) & (diff_rb <= gray_threshold) & (diff_gb <= gray_threshold)
     intensity = np.mean(RGB_enchanced, axis=2)
     # Identify gray but not white regions
-    white_threshold = config["preprocessing"].get("white_threshold", 0.82)
+    white_threshold = config["preprocessing"].get("white_threshold", 0.92)
     not_white_mask = intensity < white_threshold
     gray_but_not_white_mask = gray_color_mask & not_white_mask
+    
+    # Compute spatial offset between an ideal OSM road map and the road mask from measurment using cross-correlation.
+    int_max_shift = config["preprocessing"]["georeferencing"].get("max_reg_offset")
+                
+    # Cross-correlate & Find peak correlation
+    from skimage.morphology import dilation, disk
+    (x_off, y_off) = GetOptimalRoadOffset.find_local_road_offset_from_arrays( ~np.isnan(dilated_mask), \
+                                                                              gray_but_not_white_mask, \
+                                                                              max_shift=int_max_shift )
+
+    
     # Combine gray regions with the input mask
-    combined_mask = np.where(dilated_mask.astype(bool) & gray_but_not_white_mask,dilated_mask,0)
-    return combined_mask
+    bin_offset_dialeted_mask = np.roll(~np.isnan(dilated_mask), shift=(y_off, x_off), axis=(0, 1))
+    combined_mask = np.where(bin_offset_dialeted_mask & gray_but_not_white_mask,dilated_mask,0)
+    
+    return combined_mask, x_off, y_off
 
 
 # Function to save multi-band image parts and their tags
