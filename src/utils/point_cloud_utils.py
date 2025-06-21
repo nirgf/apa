@@ -26,6 +26,7 @@ from src.geo_reference import GetRoadsCoordinates
 from sklearn.decomposition import PCA
 import json
 import src.utils.pc_plot_utils as plt_utils
+from tqdm import tqdm
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
 RESET = "\033[0m"
@@ -840,7 +841,7 @@ def morphological_operator_multiclass_mask(multiclass_mask, operation='dilation'
     patch_radius = radius_or_size+3
 
     # Process each classx
-    for class_value in unique_classes:
+    for class_value in tqdm.tqdm(unique_classes):
         # Get sparse coordinates for the current class
         min_row, min_col, max_row, max_col = get_bounding_box(multiclass_mask == class_value)
 

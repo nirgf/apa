@@ -11,6 +11,8 @@ import src.utils.pc_plot_utils as plt_utils
 import matplotlib
 from pathlib import Path
 import src.utils.io_utils as io_utils
+import src.ImagePreProcessModule.DeepLearningFilteringModule.U_Net_Satellite.ProcessExternalImage as PreProcUNET
+from src.ImagePreProcessModule.DeepLearningFilteringModule.U_Net_Satellite import U_Net
 
 # matplotlib.use('Qt5Agg')
 matplotlib.use('TkAgg')
@@ -35,6 +37,24 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
     ##########################################################################
                 
     lon_mat, lat_mat, Msp_Image, rois = apa_utils.data_importer(config, data_dirname, data_filename, metadata_filename)
+    
+    # TODO: Incorprate deep learning based filter
+    ######################### Dev Environment ##################################
+    # rgbForRoadExtraction = Msp_Image[:, :, 3:]
+    # norm_per_channel = np.percentile(rgbForRoadExtraction, 95, axis=(0, 1), keepdims=True)
+    # rgbForRoadExtraction = rgbForRoadExtraction/norm_per_channel
+    
+    # preprocessed_unet_input = PreProcUNET.split_and_convert(rgbForRoadExtraction, 1500, 256)
+    # path_to_weights = 'src/ImagePreProcessModule/DeepLearningFilteringModule/U_Net_Satellite/weights_bceloss_100epochs.h5'
+    # pretrained_model = U_Net.load_weights(path_to_weights)
+    # predicted_roads = pretrained_model.predict(preprocessed_unet_input)
+    
+    # plt.figure(); 
+    # plt.imshow(preprocessed_unet_input[3, :, :, :], cmap='gray')
+    # plt.imshow(predicted_roads[3, :, :, :], alpha=0.2, cmap='jet')
+    
+    # plt.imshow(rgbForRoadExtraction)
+    ########################3 Dev Environment ##################################
     
     print(f'Selected ROIs:{rois}')
 
@@ -106,16 +126,7 @@ def create_database(config,data_dirname,data_filename,metadata_filename, excel_p
         crop_size = eval(config["cnn_model"]["input_shape"])[0] # Assume symmetric crop size
         normalized_masks = []
         normalized_masks_labels = []
-        
-        ### This is Temp for testing ###
-        import pickle
-
-        # with open('boudningbox_list_labeled_image_enh.pickle', 'rb') as f:
-        #     boudningbox_list_labeled_image = pickle.load(f)
-            
-        ### End Temp For Testing ###
-        
-        
+                       
         for i in range(len(boudningbox_list_labeled_image)):
             
             ## replace nans with zeros

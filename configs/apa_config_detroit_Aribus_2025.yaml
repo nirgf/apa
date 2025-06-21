@@ -20,9 +20,11 @@ config:
     normalization: true                               # Whether to normalize pixel values
     normalization_type: "min-max"                     # Type of normalization (min-max, z-score)
     spectral_smoothing: false                         # Whether to apply spectral smoothing
-    # white_threshold: 0.83                           # define white level on RGB image
-    # gray_threshold: 0.1                             # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
-    # grad_threshold: 0.6                             # define gradient image maginitude over gray level image
+    white_threshold: 0.93                             # define white level on RGB image
+    gray_threshold: 0.03                              # define difference of values between R,G,B channels for keeping only gray, asphalt color as mask
+    grad_threshold: 0.6                               # define gradient image maginitude over gray level image
+    enhance_morph_operator_size: 5                    # Radius in whuch to search nearby roads and connect to current ones (if there are 2 close roads)
+    enhance_morph_operator_type: "dilation"           # Currently always set to dilation
     
     georeferencing:                                 # Georeferencing to apply
       merge_threshold: [0.05]                       # Threshold for merging
@@ -31,6 +33,7 @@ config:
        "data/Detroit/masks_OpenStreetMap/Detroit_OpenStreets_roads_mask.npz"
       dijkstra_map_mask_path:                       # Relative path for merged segments ID roads mask
        "data/Detroit/masks_OpenStreetMap/Detroit_dijkstra_roads_mask.npz"
+      max_reg_offset: 20                            # Max offset allowed to look for geo-aligment
   
   augmentations:                                  # Augmentations to apply
     rotation: true                                # Enable random rotations
