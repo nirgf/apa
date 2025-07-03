@@ -531,13 +531,18 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
         # TODO: optimize all the parameters of enhancment
         
         enhance_morph_operator_type=config["preprocessing"].get("enhance_morph_operator_type", "dilation")
-        enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 5)
+        enhance_morph_operator_size=config["preprocessing"].get("enhance_morph_operator_size", 10)
         
         if enhance_morph_operator_type is not None and enhance_morph_operator_size > 0:
             segment_mask_nan = pc_utils.nan_arr(
                 pc_utils.morphological_operator_multiclass_mask(classified_roads_mask, enhance_morph_operator_type, 'square', enhance_morph_operator_size))
         else:
             segment_mask_nan = pc_utils.nan_arr(classified_roads_mask)
+            
+            # This function plots all masked dialted roads and normilizes histogram bins, 
+            # similar to RGB_enhanced only based on roads (grays are not blow out)
+            # ixBandsToPlot = np.arange(3, 6)
+            # plot_RGB_roads(hys_img, segment_mask_nan, ixBandsToPlot)
 
         if gyt>=0:
             
@@ -553,23 +558,28 @@ def process_geo_data(config, lon_mat, lat_mat, VenusImage, excel_path, roi):
             segment_mask_nan = pc_utils.nan_arr(gray_color_enhanced)
 
             # Use sobel gradient magnitude over Y channel to "remove" pixels containing suspected object and not roads
-            segment_mask_nan=enhance_mask_grad(gdt, classified_roads_mask, RGB_enchanced,segment_mask_nan)
+            segment_mask_nan=enhance_mask_grad(gdt, classified_roads_mask, RGB_enchanced, segment_mask_nan)
 
-        segment_mask=segment_mask_nan
+            segment_mask=segment_mask_nan
+    
+            # Offset all the variables by the new found offset :
+            
+            # Define source and target ranges
+            ix_x_start = max(0, -x_off)
+            ix_x_end = segment_mask.shape[0] - max(0, x_off)
+            ix_y_start = max(0, -y_off)
+            ix_y_end = segment_mask.shape[1] - max(0, y_off)
+                    
+            X_cropped       = X_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+            Y_cropped       = Y_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+            hys_img         = hys_img  [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+            coinciding_mask = coinciding_mask[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+            segment_mask    = segment_mask   [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
 
-        # Offset all the variables by the new found offset :
-        
-        # Define source and target ranges
-        ix_x_start = max(0, -x_off)
-        ix_x_end = segment_mask.shape[0] - max(0, x_off)
-        ix_y_start = max(0, -y_off)
-        ix_y_end = segment_mask.shape[1] - max(0, y_off)
-                
-        X_cropped       = X_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
-        Y_cropped       = Y_cropped[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
-        hys_img         = hys_img  [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
-        coinciding_mask = coinciding_mask[ix_x_start:ix_x_end, ix_y_start:ix_y_end]
-        segment_mask    = segment_mask   [ix_x_start:ix_x_end, ix_y_start:ix_y_end]
+        else:
+            
+            segment_mask=segment_mask_nan
+
         
     return X_cropped, Y_cropped, hys_img, points_merge_PCI, coinciding_mask, segment_mask, lut
 
@@ -589,6 +599,19 @@ def enhance_mask_grad(grad_threshold, classified_roads_mask, RGB_enchanced, segm
     print(
         f'After object detection, Not nan pixels in new mask {np.sum(~np.isnan(segment_mask_obj_removed))} pixels\nRemoved {100 * (1 - np.sum(~np.isnan(segment_mask_obj_removed)) / np.sum(~np.isnan(segment_mask_nan))):.2f}% of pixels from original mask\n\n')
     return segment_mask_obj_removed
+
+def plot_RGB_roads(hys_img, segment_mask_nan, ixBandsToPlot)
+
+    ixMorphologicalMask = np.where(~np.isnan(segment_mask_nan))
+    mspFilteredImg      = np.zeros(np.shape(hys_img)) 
+    mspFilteredImg[ixMorphologicalMask] = hys_img[:, :, :][ixMorphologicalMask]
+    mspFilteredImg[~(mspFilteredImg > 0)] = np.nan
+    
+    # Apply histogram normalization (stretching)
+    normalized = exposure.rescale_intensity(mspFilteredImg[~np.isnan(mspFilteredImg)], in_range='image', out_range=(0, 1))
+    mspFilteredImg[~np.isnan(mspFilteredImg)] = normalized
+    
+    plt.imshow(mspFilteredImg[:, :, ixBandsToPlot])
 
 def enhance_gray_based_on_RGB(config, RGB_enchanced, dilated_mask):
     """
