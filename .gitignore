@@ -162,3 +162,4 @@ venv*/*
 *.keras
 *.h5
 
+installs_WSL2/install_cuda12.2_cudnn9.3.sh
