@@ -1,20 +1,20 @@
 # General configuration for hyperspectral image processing and CNN-based analysis
 config:
   data:
-    input_path: "data/detroit_2025/Multispectral"             # Path to hyperspectral images dir
-    filename_NED: "IMG_PNEO4_STD_202301091639366_MS-FS_ORT_PWOI_000371696_1_1_F_1_NED_R1C1.TIF"  # multispectral images filanme [NIR, Red Edge, DeepBlue]
-    filename_RGB: "IMG_PNEO4_STD_202301091639366_MS-FS_ORT_PWOI_000371696_1_1_F_1_RGB_R1C1.TIF"  # multispectral images filanme [RGB]
+    input_path: "data/detroit_2025/Pan"                                                      # Path to images dir
+    filename_NED: "IMG_PNEO4_STD_202301091639366_PAN_ORT_PWOI_000371696_1_1_F_1_P_R1C1.TIF"  # multispectral images filanme [NIR, Red Edge, DeepBlue]
+    filename_RGB: ""  # multispectral images filanme [RGB]
     output_path: "results/"                                   # Directory for output results
     big_tiff: false                                           # is Tiff image contains all band or need to parse different tiff files into one array
     zone: 'Detroit'                                           # How to convert the geo tiff coorindates into real world cooridantes
-    bands_to_use: [0, 1, 2, 3, 4, 5, 6]                       # Selected spectral bands for processing
-    spatial_resolution: 1.2                                   # Resolution of the image in meters
+    bands_to_use: [0]                       # Selected spectral bands for processing
+    spatial_resolution: 0.3                                   # Resolution of the image in meters
     label_file: "/Detroit/Pavement_Condition.csv"             # Path to labels for supervised learning
-    rois: [[-83.078832, -83.035603, 42.351850, 42.37165]]    # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
+    rois: [[-83.098832, -83.015603, 42.331850, 42.39165]]    # ROI to crop the full hyperspectral image and its X,Y in format of [xmin_cut, xmax_cut, ymin_cut, ymax_cut]
     hsp_path: "tests/runners/BoudingBoxList-83_-83_42_42.h5"  # Path to HSP file
     PCI_path: "tests/runners/BoudingBoxLabel-83_-83_42_42.h5" # Path to PCI file
     output_path : preprocessed_database/                      # Path for the pre-processed data to be saved
-    enum_data_source: 2                                       # 0 - venus_IL, 1 - venus_Detroit, 2 - airbus_HSP_Detroit, 3 - airbus_Pan_Detroit 
+    enum_data_source: 3                                       # 0 - venus_IL, 1 - venus_Detroit, 2 - airbus_HSP_Detroit, 3 - airbus_Pan_Detroit 
   
   preprocessing:
     normalization: true                               # Whether to normalize pixel values
