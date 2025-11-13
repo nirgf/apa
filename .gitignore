@@ -144,7 +144,6 @@ data/processed/
 *.TIFF
 *.GEOTIFF
 # Ignore entire data directory to prevent large assets from being committed
-/data/
 /Detroit/
 
 # Model files
@@ -210,3 +209,4 @@ config_secret.yaml
 
 # Pre-commit
 .pre-commit-config.yaml.bak
+data/venus data/VE_VM03_VSC_L2VALD_ISRAELWB_20230531.DBL
