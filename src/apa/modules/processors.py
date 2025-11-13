@@ -8,6 +8,7 @@ PCI segmentation, and data preprocessing.
 from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import os
+import sys
 from pathlib import Path
 
 from apa.common import (
@@ -17,11 +18,25 @@ from apa.common import (
     DataError,
 )
 
-# Try to import Dataset enum
+# Import Dataset enum from centralized location
+# Add project root to path if not already there
+_project_root = Path(__file__).parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 try:
     from enums.datasets_enum import Dataset
 except ImportError:
-    print("Error importing enums.datasets_enum")
+    # Fallback: try direct path import
+    try:
+        import importlib.util
+        enum_path = _project_root / "enums" / "datasets_enum.py"
+        spec = importlib.util.spec_from_file_location("datasets_enum", enum_path)
+        datasets_enum = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(datasets_enum)
+        Dataset = datasets_enum.Dataset
+    except Exception as e:
+        raise ImportError(f"Failed to import Dataset enum from {enum_path}: {e}")
 
 # Import pc_utils from local utils module
 try:
