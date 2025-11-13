@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import h5py
 import os
+import sys
+import importlib.util
 
 from apa.common import (
     BaseModule,
@@ -18,16 +20,25 @@ from apa.common import (
     ValidationError,
 )
 from apa.common.interfaces import DataInterface
+
+# Import Dataset enum from centralized location
+# Add project root to path if not already there
+_project_root = Path(__file__).parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 try:
     from enums.datasets_enum import Dataset
 except ImportError:
-    # Fallback if enums module is not available
-    from enum import Enum
-    class Dataset(Enum):
-        venus_IL = 0
-        venus_Detroit = 1
-        airbus_HSP_Detroit = 2
-        airbus_Pan_Detroit = 3
+    # Fallback: try direct path import
+    try:
+        enum_path = _project_root / "enums" / "datasets_enum.py"
+        spec = importlib.util.spec_from_file_location("datasets_enum", enum_path)
+        datasets_enum = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(datasets_enum)
+        Dataset = datasets_enum.Dataset
+    except Exception as e:
+        raise ImportError(f"Failed to import Dataset enum from {enum_path}: {e}")
 
 # Try to import required modules for data loading
 try:
