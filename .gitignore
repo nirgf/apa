@@ -190,6 +190,8 @@ Thumbs.db
 
 # Zone.Identifier files (Windows)
 *:Zone.Identifier
+**/*Zone.Identifier
+Zone.Identifier
 
 # Large data files that shouldn't be in version control
 *.zip

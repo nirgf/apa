@@ -7,6 +7,8 @@ PCI segmentation, and data preprocessing.
 
 from typing import Any, Dict, Optional, Tuple
 import numpy as np
+import os
+from pathlib import Path
 
 from apa.common import (
     BaseDataProcessor,
@@ -25,15 +27,31 @@ except ImportError:
 try:
     from apa.utils.point_cloud_utils import (
         normalize_hypersepctral_bands,
+        merge_close_points,
+        is_roi_within_bounds,
     )
     HAS_PC_UTILS = True
     # Create alias for compatibility
     class PCUtils:
         normalize_hypersepctral_bands = normalize_hypersepctral_bands
+        merge_close_points = merge_close_points
+        is_roi_within_bounds = is_roi_within_bounds
     pc_utils = PCUtils()
 except ImportError:
     HAS_PC_UTILS = False
     pc_utils = None
+
+# Import road mask loader
+try:
+    from apa.utils.road_mask_loader import (
+        get_mask_from_roads_gdf,
+        create_mask_from_roads_gdf,
+    )
+    HAS_ROAD_MASK_LOADER = True
+except ImportError:
+    HAS_ROAD_MASK_LOADER = False
+    get_mask_from_roads_gdf = None
+    create_mask_from_roads_gdf = None
 
 
 class ROIProcessor(BaseDataProcessor):
@@ -264,43 +282,212 @@ class RoadExtractor(BaseDataProcessor):
     
     def _process_impl(self, data: DataContainer, config: Dict[str, Any]) -> DataContainer:
         """
-        Extract road network.
+        Extract road network from hyperspectral imagery using OpenStreetMap data.
+        
+        Main function for doing geo-reference between PCI data and HSI images.
+        Extracts road mask from OpenStreetMap and aligns it with the hyperspectral data.
         
         Args:
-            data: Input data container
-            config: Processing configuration
+            data: Input data container with dictionary containing:
+                - 'image': Hyperspectral image array (height, width, bands)
+                - 'lon_mat': Longitude matrix (height, width)
+                - 'lat_mat': Latitude matrix (height, width)
+            config: Processing configuration with:
+                - Full config structure with 'data' and 'preprocessing' sections
+                - 'data': Contains 'enum_data_source', 'zone', 'rois'
+                - 'preprocessing': Contains 'georeferencing' with 'osx_map_mask_path'
             
         Returns:
-            DataContainer with road mask
+            DataContainer with road mask (binary array where 1 = road, 0 = non-road)
         """
-        method = config.get('method', 'osm')
+        if not HAS_ROAD_MASK_LOADER:
+            raise DataError("road_mask_loader module is required for road extraction")
         
-        # TODO: Implement road extraction logic
-        # This is a template - replace with actual implementation
-        # Example:
-        # if method == 'osm':
-        #     road_mask = extract_from_osm(data.data, config)
-        # elif method == 'segmentation':
-        #     road_mask = segment_roads(data.data, config)
+        # Validate input data structure
+        if not isinstance(data.data, dict):
+            raise DataError("Road extraction requires data as dictionary with 'image', 'lon_mat', 'lat_mat'")
         
-        # Placeholder: create dummy mask
-        if isinstance(data.data, np.ndarray):
-            shape = data.data.shape[:2] if len(data.data.shape) > 2 else data.data.shape
-            road_mask = np.zeros(shape, dtype=np.uint8)
+        image = data.data.get('image')
+        lon_mat = data.data.get('lon_mat')
+        lat_mat = data.data.get('lat_mat')
+        
+        if image is None or lon_mat is None or lat_mat is None:
+            raise DataError("Road extraction requires 'image', 'lon_mat', and 'lat_mat' in data dictionary")
+        
+        # Extract config sections - handle both flat and nested config
+        if 'data' in config:
+            data_config = config['data']
         else:
-            road_mask = np.array([0])  # Placeholder
+            data_config = config
+        
+        if 'preprocessing' in config and 'georeferencing' in config['preprocessing']:
+            georef_config = config['preprocessing']['georeferencing']
+        else:
+            georef_config = config.get('georeferencing', {})
+        
+        # Get enum_data_source
+        enum_data_source = data_config.get('enum_data_source', 1)
+        
+        # Get ROI from config or metadata
+        roi = None
+        if 'rois' in data_config and data_config['rois']:
+            roi = data_config['rois'][0]  # Use first ROI
+        elif 'roi_bounds' in config:
+            roi = config['roi_bounds']
+        elif 'roi_bounds' in data.metadata:
+            roi = data.metadata['roi_bounds']
+        else:
+            # Calculate ROI from coordinate matrices
+            roi = [
+                np.min(lon_mat),  # xmin_cut (lon_min)
+                np.max(lon_mat),  # xmax_cut (lon_max)
+                np.min(lat_mat),  # ymin_cut (lat_min)
+                np.max(lat_mat),  # ymax_cut (lat_max)
+            ]
+        
+        # Get cropped data - check if already cropped (from ROIProcessor)
+        if 'cropped_rect' in data.metadata:
+            # Data already cropped by ROIProcessor
+            X_cropped = lat_mat
+            Y_cropped = lon_mat
+            cropped_rect = data.metadata['cropped_rect']
+        else:
+            # Need to crop ROI first
+            # Convert enum_data_source to Dataset enum
+            if isinstance(enum_data_source, int):
+                dataset = Dataset(enum_data_source)
+            elif isinstance(enum_data_source, Dataset):
+                dataset = enum_data_source
+            else:
+                dataset = Dataset.venus_Detroit  # Default
+            
+            # Crop ROI using the same logic as ROIProcessor
+            X_cropped, Y_cropped, cropped_image, RGB_enhanced, cropped_rect = self._crop_roi_for_roads(
+                roi, lon_mat, lat_mat, image, dataset
+            )
+        
+        # Get road mask from OpenStreetMap
+        # Determine NPZ filename
+        if 'osx_map_mask_path' in georef_config:
+            npz_filename = georef_config['osx_map_mask_path']
+        else:
+            npz_filename = 'data/Detroit/masks_OpenStreetMap/Detroit_OpenSteet_roads_mask.npz'
+        
+        # Add enum_data_source suffix
+        if npz_filename.endswith('.npz'):
+            npz_filename = npz_filename[:-4] + str(enum_data_source) + '.npz'
+        else:
+            npz_filename = npz_filename + str(enum_data_source) + '.npz'
+        
+        # Get REPO_ROOT (project root)
+        repo_root = self._get_repo_root()
+        npz_filename = os.path.join(repo_root, npz_filename)
+        
+        # Prepare mask data
+        mask_data = {
+            "roi": roi,
+            "X_cropped": X_cropped,
+            "Y_cropped": Y_cropped
+        }
+        
+        # Get road mask
+        coinciding_mask = get_mask_from_roads_gdf(npz_filename, cropped_rect, mask_data)
         
         metadata = {
             **data.metadata,
-            'method': method,
+            'method': 'osm',
             'processor': self.name,
+            'npz_filename': npz_filename,
+            'roi': roi,
+            'cropped_rect': cropped_rect,
         }
         
         return DataContainer(
-            data=road_mask,
+            data=coinciding_mask,
             metadata=metadata,
             data_type='road_mask'
         )
+    
+    def _crop_roi_for_roads(self, roi: list, lon_mat: np.ndarray, lat_mat: np.ndarray,
+                           MSP_Image: np.ndarray, dataset: Dataset) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Tuple[int, int, int, int]]:
+        """
+        Crop ROI from image for road extraction.
+        
+        Simplified version of cropROI_Venus_image that doesn't create RGB or normalize.
+        Only crops the image and coordinates.
+        
+        Args:
+            roi: ROI bounds as [xmin_cut, xmax_cut, ymin_cut, ymax_cut] (lon_min, lon_max, lat_min, lat_max)
+            lon_mat: Longitude matrix
+            lat_mat: Latitude matrix
+            MSP_Image: Multispectral/hyperspectral image
+            dataset: Dataset enum value
+        
+        Returns:
+            Tuple of (X_cropped, Y_cropped, cropped_MSP_img, RGB_enhanced, cropped_rect)
+        """
+        xmin_cut, xmax_cut, ymin_cut, ymax_cut = roi
+        
+        # Get the indices corresponding to the cut boundaries
+        idx_roi = np.argwhere((lon_mat > ymin_cut) & (lon_mat < ymax_cut) &
+                              (lat_mat > xmin_cut) & (lat_mat < xmax_cut))
+        
+        if len(idx_roi) == 0:
+            raise DataError(f"No pixels found within ROI bounds: {roi}")
+        
+        # Get the bounding box indices
+        x_ind_min, x_ind_max = np.min(idx_roi[:, 1]), np.max(idx_roi[:, 1])
+        y_ind_min, y_ind_max = np.min(idx_roi[:, 0]), np.max(idx_roi[:, 0])
+        
+        # Cut the image based on indices
+        cropped_MSP_img = MSP_Image[y_ind_min:y_ind_max, x_ind_min:x_ind_max, :].astype(float)
+        
+        # Create RGB image based on dataset type (for compatibility, but not used for road extraction)
+        if dataset == Dataset.venus_Detroit:
+            RGB_Img = cropped_MSP_img[:, :, [6, 3, 1]].astype(float)
+        elif dataset == Dataset.airbus_HSP_Detroit:
+            RGB_Img = cropped_MSP_img[:, :, 3:].astype(float)
+        elif dataset == Dataset.airbus_Pan_Detroit:
+            RGB_Img = np.repeat(cropped_MSP_img, repeats=3, axis=2)
+        else:
+            RGB_Img = cropped_MSP_img[:, :, :3].astype(float)
+        
+        # Crop coordinate matrices
+        lon_mat_roi = lon_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+        lat_mat_roi = lat_mat[y_ind_min:y_ind_max, x_ind_min:x_ind_max]
+        
+        # Return cropped data
+        X_cropped = lat_mat_roi
+        Y_cropped = lon_mat_roi
+        cropped_rect = (x_ind_min, y_ind_min, x_ind_max, y_ind_max)
+        
+        return X_cropped, Y_cropped, cropped_MSP_img, RGB_Img, cropped_rect
+    
+    def _get_repo_root(self) -> str:
+        """
+        Get repository root directory.
+        
+        Looks for common markers like 'src', 'configs', 'setup.py' to find project root.
+        
+        Returns:
+            Path to repository root
+        """
+        cwd = os.getcwd()
+        
+        # Look for project root markers
+        for root_marker in ['setup.py', 'src', 'configs', '.git']:
+            current = cwd
+            for _ in range(5):  # Go up max 5 levels
+                marker_path = os.path.join(current, root_marker)
+                if os.path.exists(marker_path):
+                    return current
+                parent = os.path.dirname(current)
+                if parent == current:  # Reached root
+                    break
+                current = parent
+        
+        # Fallback to current working directory
+        return cwd
 
 
 class PCISegmenter(BaseDataProcessor):
