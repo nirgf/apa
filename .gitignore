@@ -144,7 +144,6 @@ data/processed/
 *.TIFF
 *.GEOTIFF
 # Ignore entire data directory to prevent large assets from being committed
-/data/
 /Detroit/
 
 # Model files
