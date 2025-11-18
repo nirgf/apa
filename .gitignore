@@ -134,12 +134,10 @@ dmypy.json
 data/raw/
 data/processed/
 *.h5
-*.npz
 *.tif
 *.tiff
 *.geotiff
 *.H5
-*.NPZ
 *.TIF
 *.TIFF
 *.GEOTIFF
