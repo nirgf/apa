@@ -19,6 +19,7 @@ from apa.common import (
     DataContainer,
     ProcessingResult,
     DataError,
+    ValidationError,
 )
 
 # Import Dataset enum from centralized location
@@ -42,28 +43,90 @@ except ImportError:
         raise ImportError(f"Failed to import Dataset enum from {enum_path}: {e}")
 
 # Import pc_utils from local utils module
+# This module-level import makes pc_utils available to ALL processors in this file:
+# - ROIProcessor: uses normalize_hypersepctral_bands
+# - RoadExtractor: has access (currently unused, but available if needed)
+# - PCISegmenter: uses many functions (merge_close_points, create_proximity_mask, morphological_operator, etc.)
+# - DataPreprocessor: uses normalize_hypersepctral_bands and process_labeled_image
 # Try to import the full module to access all functions
+HAS_PC_UTILS = False
+pc_utils = None
+
 try:
     import sys
-    _project_root_pc = Path(__file__).parent.parent.parent.parent
+    # Get project root - handle case where __file__ might not be available (e.g., in some import contexts)
+    try:
+        _project_root_pc = Path(__file__).parent.parent.parent.parent
+    except NameError:
+        # __file__ not available, try to find project root from current working directory
+        _project_root_pc = Path.cwd()
+        # Look for src directory
+        if not (_project_root_pc / "src" / "apa" / "utils" / "point_cloud_utils.py").exists():
+            # Try going up directories
+            for _ in range(5):
+                if (_project_root_pc / "src" / "apa" / "utils" / "point_cloud_utils.py").exists():
+                    break
+                _project_root_pc = _project_root_pc.parent
+    
     pc_utils_path = _project_root_pc / "src" / "apa" / "utils" / "point_cloud_utils.py"
+    
     if pc_utils_path.exists():
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("point_cloud_utils", pc_utils_path)
-        pc_utils_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(pc_utils_module)
-        pc_utils = pc_utils_module
-        HAS_PC_UTILS = True
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("point_cloud_utils", pc_utils_path)
+            pc_utils_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(pc_utils_module)
+            pc_utils = pc_utils_module
+            HAS_PC_UTILS = True
+        except Exception as import_error:
+            # Module exists but failed to import (likely missing dependencies like scipy)
+            # Try package import as fallback
+            try:
+                from apa.utils import point_cloud_utils as pc_utils
+                HAS_PC_UTILS = True
+            except ImportError:
+                # Package import also failed, try minimal imports
+                try:
+                    from apa.utils.point_cloud_utils import (
+                        normalize_hypersepctral_bands,
+                        merge_close_points,
+                        is_roi_within_bounds,
+                    )
+                    HAS_PC_UTILS = True
+                    # Create minimal wrapper
+                    class PCUtils:
+                        normalize_hypersepctral_bands = normalize_hypersepctral_bands
+                        merge_close_points = merge_close_points
+                        is_roi_within_bounds = is_roi_within_bounds
+                    pc_utils = PCUtils()
+                except ImportError:
+                    HAS_PC_UTILS = False
+                    pc_utils = None
     else:
-        # Fallback: try package import
+        # File doesn't exist, try package import
         try:
             from apa.utils import point_cloud_utils as pc_utils
             HAS_PC_UTILS = True
         except ImportError:
-            HAS_PC_UTILS = False
-            pc_utils = None
+            # Try minimal imports
+            try:
+                from apa.utils.point_cloud_utils import (
+                    normalize_hypersepctral_bands,
+                    merge_close_points,
+                    is_roi_within_bounds,
+                )
+                HAS_PC_UTILS = True
+                # Create minimal wrapper
+                class PCUtils:
+                    normalize_hypersepctral_bands = normalize_hypersepctral_bands
+                    merge_close_points = merge_close_points
+                    is_roi_within_bounds = is_roi_within_bounds
+                pc_utils = PCUtils()
+            except ImportError:
+                HAS_PC_UTILS = False
+                pc_utils = None
 except Exception as e:
-    # Fallback: try minimal imports
+    # Last resort: try minimal imports
     try:
         from apa.utils.point_cloud_utils import (
             normalize_hypersepctral_bands,
@@ -589,7 +652,52 @@ class PCISegmenter(BaseDataProcessor):
                 - pci_values: List of valid PCI values
         """
         super().__init__("pci_segmenter", config)
-        self.supported_data_types = ['road_mask', 'ground_truth_pci']
+        self.supported_data_types = ['road_mask', 'ground_truth_pci', 'pci_segmentation_input']
+    
+    def validate_input(self, data: DataContainer) -> bool:
+        """
+        Validate input data for PCI segmentation.
+        
+        For 'pci_segmentation_input' type, validates that the dictionary contains
+        the required data containers: 'hyperspectral_data', 'ground_truth_data', 'road_data'.
+        
+        Args:
+            data: Input data container to validate
+            
+        Returns:
+            True if valid
+            
+        Raises:
+            ValidationError if invalid
+        """
+        # Call base validation first
+        super().validate_input(data)
+        
+        # Additional validation for pci_segmentation_input type
+        if data.data_type == 'pci_segmentation_input':
+            if not isinstance(data.data, dict):
+                raise ValidationError(
+                    "For 'pci_segmentation_input' type, data must be a dictionary with "
+                    "'hyperspectral_data', 'ground_truth_data', and 'road_data' keys"
+                )
+            
+            required_keys = ['hyperspectral_data', 'ground_truth_data', 'road_data']
+            missing_keys = [key for key in required_keys if key not in data.data]
+            if missing_keys:
+                raise ValidationError(
+                    f"Missing required keys in pci_segmentation_input: {missing_keys}. "
+                    f"Required keys: {required_keys}"
+                )
+            
+            # Validate that each value is a DataContainer
+            for key in required_keys:
+                value = data.data[key]
+                if not isinstance(value, DataContainer):
+                    raise ValidationError(
+                        f"Value for '{key}' must be a DataContainer, got {type(value)}"
+                    )
+        
+        return True
     
     def _process_impl(self, data: DataContainer, config: Dict[str, Any]) -> DataContainer:
         """
@@ -610,7 +718,12 @@ class PCISegmenter(BaseDataProcessor):
         """
         # Validate required modules
         if not HAS_PC_UTILS or pc_utils is None:
-            raise DataError("pc_utils module is required for PCI segmentation")
+            raise DataError(
+                "pc_utils module is required for PCI segmentation. "
+                "The point_cloud_utils.py file exists but could not be imported. "
+                "This is likely due to missing dependencies (e.g., scipy). "
+                "Please install required dependencies: pip install scipy"
+            )
         if not HAS_GROUND_TRUTH_LOADER:
             raise DataError("ground_truth_loader module is required for PCI segmentation")
         if not HAS_ROAD_MASK_LOADER:
@@ -658,11 +771,29 @@ class PCISegmenter(BaseDataProcessor):
         # Get ground truth PCI data
         gt_data = ground_truth_data.data
         if isinstance(gt_data, dict):
-            points_PCI = gt_data.get('pci')
+            # Ground truth data is stored as separate arrays: 'pci', 'lon', 'lat', 'seg_id'
+            pci_vec = gt_data.get('pci')  # 1D array of PCI values
+            lon_vec = gt_data.get('lon')  # 1D array of longitude values
+            lat_vec = gt_data.get('lat')  # 1D array of latitude values
             seg_id = gt_data.get('seg_id', [])
+            
+            # Combine into 2D array with shape (N, 3) where each row is [lon, lat, pci]
+            if pci_vec is not None and lon_vec is not None and lat_vec is not None:
+                # Ensure all arrays have the same length
+                min_len = min(len(pci_vec), len(lon_vec), len(lat_vec))
+                if min_len > 0:
+                    points_PCI = np.column_stack([
+                        lon_vec[:min_len],
+                        lat_vec[:min_len],
+                        pci_vec[:min_len]
+                    ])
+                else:
+                    points_PCI = np.array([]).reshape(0, 3)
+            else:
+                points_PCI = np.array([]).reshape(0, 3)
         else:
-            # Assume it's the points array directly
-            points_PCI = gt_data
+            # Assume it's already a 2D array with shape (N, 3) containing [lon, lat, pci]
+            points_PCI = gt_data if isinstance(gt_data, np.ndarray) else np.array([]).reshape(0, 3)
             seg_id = []
         
         # Get road mask
@@ -760,7 +891,7 @@ class PCISegmenter(BaseDataProcessor):
             hys_img: Cropped hyperspectral image
             RGB_enhanced: Enhanced RGB image
             coinciding_mask: Road mask from OpenStreetMap
-            points_PCI: PCI point data (lon, lat, pci)
+            points_PCI: PCI point data as 2D array with shape (N, 3) where each row is [lon, lat, pci]
             ROI_seg: Segment IDs for ROI points
             roi: ROI bounds
             enum_data_source: Dataset enum value
@@ -772,6 +903,7 @@ class PCISegmenter(BaseDataProcessor):
         lut = None
         
         # Merge close PCI points
+        # points_PCI should be a 2D array with shape (N, 3) where each row is [lon, lat, pci]
         if points_PCI is not None and len(points_PCI) > 0:
             if HAS_PC_UTILS and hasattr(pc_utils, 'merge_close_points'):
                 points_merge_PCI = pc_utils.merge_close_points(
@@ -781,8 +913,8 @@ class PCISegmenter(BaseDataProcessor):
                 points_merge_PCI = points_PCI
             xy_points_merge = points_merge_PCI[:, :2]
         else:
-            points_merge_PCI = np.array([])
-            xy_points_merge = np.array([])
+            points_merge_PCI = np.array([]).reshape(0, 3)
+            xy_points_merge = np.array([]).reshape(0, 2)
         
         # Determine segmentation method based on segment IDs
         if len(ROI_seg) == 0:
@@ -808,7 +940,7 @@ class PCISegmenter(BaseDataProcessor):
                 combine_mask_roads = extended_mask * coinciding_mask
             
             # Interpolate PCI values to grid
-            if len(points_PCI) > 0:
+            if len(points_PCI) > 0 and points_PCI.shape[1] >= 3:
                 grid_value = griddata(
                     points_PCI[:, :2], points_PCI[:, 2],
                     (X_cropped, Y_cropped), method='nearest'

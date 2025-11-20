@@ -33,7 +33,14 @@ except ImportError:
         from ..geo_reference import GetRoadsCoordinates
 from sklearn.decomposition import PCA
 import json
-import src.utils.pc_plot_utils as plt_utils
+# Try to import pc_plot_utils (optional - may not exist)
+try:
+    import src.utils.pc_plot_utils as plt_utils
+except ImportError:
+    try:
+        from apa.utils import pc_plot_utils as plt_utils
+    except ImportError:
+        plt_utils = None  # Optional module, set to None if not available
 from tqdm import tqdm
 # ANSI escape codes for purple text with a black background
 PURPLE_ON_BLACK = "\033[45;30m"
@@ -330,7 +337,7 @@ def dijkstra_vectorized(mask, start, stop):
 # -------------------------------
 # Merge Close Points
 # -------------------------------
-def merge_close_points(points,PCI, threshold=0.551,**kwargs):
+def merge_close_points(points, PCI, threshold=0.551,**kwargs):
     # np.concatenate([points,PCI.reshape(-1, 1)],axis=1)
     points=np.c_[points,PCI]
     merged_points = []
